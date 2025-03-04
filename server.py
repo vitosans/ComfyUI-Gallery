@@ -34,7 +34,7 @@ class FileSystemMonitor(threading.Thread):
                     print("FileSystemMonitor: Change detected!")
                     PromptServer.instance.send_sync("Gallery.file_change", {})
                     self.last_known_files = current_files
-                else:
+                # else:
                     # print("FileSystemMonitor: No changes detected.") # Keep for debug
                 time.sleep(self.interval)
             except Exception as e:
