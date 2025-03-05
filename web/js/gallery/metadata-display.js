@@ -28,19 +28,24 @@ function showInfoWindow(metadata, imageUrl) {
     this.fullscreenContainer.innerHTML = '';
     this.fullscreenContainer.style.display = 'flex';
 
+    // Create a modal container to hold everything with proper sizing
+    const modalContainer = document.createElement('div');
+    modalContainer.classList.add('info-window');
+    this.fullscreenContainer.appendChild(modalContainer);
+
     const closeButton = document.createElement('span');
     closeButton.classList.add('info-close');
     closeButton.innerHTML = '×';
     closeButton.onclick = () => this.closeFullscreenView();
-    this.fullscreenContainer.appendChild(closeButton);
+    modalContainer.appendChild(closeButton);
 
     const infoContent = document.createElement('div');
     infoContent.classList.add('info-content');
-    this.fullscreenContainer.appendChild(infoContent);
+    modalContainer.appendChild(infoContent);
 
     this.populateInfoWindowContent(infoContent, metadata, imageUrl);
 
-    this.infoWindow.style.display = 'block';
+    this.infoWindow.style.display = 'none'; // We're not using the original info window container
     this.rawMetadataWindow.style.display = 'none';
     this.fullscreenImage = null;
     this.galleryPopup.style.zIndex = '1001';
@@ -128,21 +133,26 @@ function showRawMetadataWindow(metadata) {
     this.fullscreenContainer.innerHTML = '';
     this.fullscreenContainer.style.display = 'flex';
 
+    // Create a modal container to hold everything with proper sizing
+    const modalContainer = document.createElement('div');
+    modalContainer.classList.add('raw-metadata-window');
+    this.fullscreenContainer.appendChild(modalContainer);
+
     const closeButton = document.createElement('span');
     closeButton.classList.add('raw-metadata-close');
     closeButton.innerHTML = '×';
     closeButton.onclick = () => this.closeFullscreenView();
-    this.fullscreenContainer.appendChild(closeButton);
+    modalContainer.appendChild(closeButton);
 
     const metadataContent = document.createElement('div');
     metadataContent.classList.add('raw-metadata-content');
-    this.fullscreenContainer.appendChild(metadataContent);
+    modalContainer.appendChild(metadataContent);
 
     const metadataTextarea = document.createElement('textarea');
     metadataTextarea.value = JSON.stringify(metadata, null, 2);
     metadataContent.appendChild(metadataTextarea);
 
-    this.rawMetadataWindow.style.display = 'block';
+    this.rawMetadataWindow.style.display = 'none'; // We're not using the original raw metadata window
     this.infoWindow.style.display = 'none';
     this.fullscreenImage = null;
 
