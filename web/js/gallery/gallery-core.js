@@ -26,6 +26,20 @@ class Gallery {
         this.createButton();
         createGalleryUI(this);
         this.applyStyles();
+        this.setupKeyboardEvents();
+    }
+    
+    setupKeyboardEvents() {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                // Close any open fullscreen container or popup
+                if (this.fullscreenContainer && this.fullscreenContainer.style.display === 'flex') {
+                    this.closeFullscreenView();
+                } else if (this.galleryPopup && this.galleryPopup.style.display === 'flex') {
+                    this.closeGallery();
+                }
+            }
+        });
     }
 
     createButton() {
