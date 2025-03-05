@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from PIL import Image, ImageOps
@@ -64,6 +65,43 @@ def buildMetadata(image_path):
                 else:
                     metadata["prompt"] = v # If not a string, keep as is (might already be parsed)
 
+            # Handle "parameters" field which contains the generation parameters
+            elif k == "parameters":
+                if isinstance(v, str):
+                    # Store the full parameters string
+                    metadata["parameters"] = v
+                    
+                    # Try to extract model name, sampler, and seed if present
+                    try:
+                        # Extract model name
+                        model_match = re.search(r"Model: ([^,]+)", v)
+                        if model_match:
+                            metadata["model"] = model_match.group(1).strip()
+                        
+                        # Extract sampler
+                        sampler_match = re.search(r"Sampler: ([^,]+)", v)
+                        if sampler_match:
+                            metadata["sampler"] = sampler_match.group(1).strip()
+                        
+                        # Extract seed
+                        seed_match = re.search(r"Seed: (\d+)", v)
+                        if seed_match:
+                            metadata["seed"] = seed_match.group(1).strip()
+                            
+                        # Extract steps
+                        steps_match = re.search(r"Steps: (\d+)", v)
+                        if steps_match:
+                            metadata["steps"] = steps_match.group(1).strip()
+                        
+                        # Extract LoRA information
+                        lora_match = re.search(r"<lora:([^>]+)>", v)
+                        if lora_match:
+                            metadata["lora"] = lora_match.group(1).strip()
+                    except Exception as e:
+                        print(f"Warning: Error extracting information from parameters: {e}")
+                else:
+                    metadata["parameters"] = v
+
             else:
                 if isinstance(v, str): # Check if v is a string before attempting json.loads
                     try:
@@ -118,4 +156,17 @@ def buildPreviewText(metadata):
     text += f"Resolution: {metadata['fileinfo']['resolution']}\n"
     text += f"Date: {metadata['fileinfo']['date']}\n"
     text += f"Size: {metadata['fileinfo']['size']}\n"
+    
+    # Add useful generation parameters if available
+    if "model" in metadata:
+        text += f"Model: {metadata['model']}\n"
+    if "sampler" in metadata:
+        text += f"Sampler: {metadata['sampler']}\n"
+    if "steps" in metadata:
+        text += f"Steps: {metadata['steps']}\n"
+    if "seed" in metadata:
+        text += f"Seed: {metadata['seed']}\n"
+    if "lora" in metadata:
+        text += f"LoRA: {metadata['lora']}\n"
+        
     return text
