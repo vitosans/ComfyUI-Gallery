@@ -74,25 +74,45 @@ def buildMetadata(image_path):
                     # Try to extract model name, sampler, and seed if present
                     try:
                         # Extract model name
-                        model_match = re.search(r"Model: ([^,]+)", v)
+                        model_match = re.search(r"Model: ([^,\n]+)", v)
                         if model_match:
                             metadata["model"] = model_match.group(1).strip()
                         
+                        # Extract positive prompt (might be at the beginning of the parameters)
+                        positive_match = re.match(r"^(.*?)(?:Negative prompt:|Steps:|Model:|Sampler:|Seed:|Scheduler:|CFG)", v, re.DOTALL)
+                        if positive_match and positive_match.group(1).strip():
+                            metadata["positive_prompt"] = positive_match.group(1).strip()
+                            
+                        # Extract negative prompt
+                        negative_match = re.search(r"Negative prompt:(.*?)(?:Steps:|Model:|Sampler:|Seed:|Scheduler:|CFG|$)", v, re.DOTALL)
+                        if negative_match:
+                            metadata["negative_prompt"] = negative_match.group(1).strip()
+                            
                         # Extract sampler
-                        sampler_match = re.search(r"Sampler: ([^,]+)", v)
+                        sampler_match = re.search(r"Sampler: ([^,\n]+)", v)
                         if sampler_match:
                             metadata["sampler"] = sampler_match.group(1).strip()
+                            
+                        # Extract scheduler
+                        scheduler_match = re.search(r"Scheduler: ([^,\n]+)", v)
+                        if scheduler_match:
+                            metadata["scheduler"] = scheduler_match.group(1).strip()
+                            
+                        # Extract steps
+                        steps_match = re.search(r"Steps: (\d+)", v)
+                        if steps_match:
+                            metadata["steps"] = steps_match.group(1).strip()
+                            
+                        # Extract CFG Scale
+                        cfg_match = re.search(r"CFG[ scale]*: ([\d\.]+)", v, re.IGNORECASE)
+                        if cfg_match:
+                            metadata["cfg_scale"] = cfg_match.group(1).strip()
                         
                         # Extract seed
                         seed_match = re.search(r"Seed: (\d+)", v)
                         if seed_match:
                             metadata["seed"] = seed_match.group(1).strip()
                             
-                        # Extract steps
-                        steps_match = re.search(r"Steps: (\d+)", v)
-                        if steps_match:
-                            metadata["steps"] = steps_match.group(1).strip()
-                        
                         # Extract LoRA information
                         lora_match = re.search(r"<lora:([^>]+)>", v)
                         if lora_match:
@@ -101,6 +121,14 @@ def buildMetadata(image_path):
                         print(f"Warning: Error extracting information from parameters: {e}")
                 else:
                     metadata["parameters"] = v
+
+            # Handle CreationTime specially to avoid JSON parsing errors
+            elif k == "CreationTime":
+                if isinstance(v, str):
+                    # Store as is without attempting to parse as JSON
+                    metadata[str(k)] = v
+                else:
+                    metadata[str(k)] = str(v)  # Convert to string if not already
 
             else:
                 if isinstance(v, str): # Check if v is a string before attempting json.loads
@@ -160,10 +188,18 @@ def buildPreviewText(metadata):
     # Add useful generation parameters if available
     if "model" in metadata:
         text += f"Model: {metadata['model']}\n"
+    if "positive_prompt" in metadata:
+        text += f"Positive Prompt: {metadata['positive_prompt']}\n"
+    if "negative_prompt" in metadata:
+        text += f"Negative Prompt: {metadata['negative_prompt']}\n"
     if "sampler" in metadata:
         text += f"Sampler: {metadata['sampler']}\n"
+    if "scheduler" in metadata:
+        text += f"Scheduler: {metadata['scheduler']}\n"
     if "steps" in metadata:
         text += f"Steps: {metadata['steps']}\n"
+    if "cfg_scale" in metadata:
+        text += f"CFG Scale: {metadata['cfg_scale']}\n"
     if "seed" in metadata:
         text += f"Seed: {metadata['seed']}\n"
     if "lora" in metadata:
