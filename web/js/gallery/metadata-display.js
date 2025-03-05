@@ -141,37 +141,47 @@ function populateInfoWindowContent(infoContent, metadata, imageUrl) {
 }
 
 function showRawMetadataWindow(metadata) {
+    // Clear the container and ensure it's visible
     this.fullscreenContainer.innerHTML = '';
     this.fullscreenContainer.style.display = 'flex';
 
-    // Create a modal container to hold everything with proper sizing
-    const modalContainer = document.createElement('div');
-    modalContainer.classList.add('raw-metadata-window');
-    this.fullscreenContainer.appendChild(modalContainer);
+    // Create a modal dialog for raw metadata
+    const modalDialog = document.createElement('div');
+    modalDialog.classList.add('raw-metadata-dialog');
+    this.fullscreenContainer.appendChild(modalDialog);
 
-    // Create a header section for the close button
-    const headerSection = document.createElement('div');
-    headerSection.classList.add('raw-metadata-header');
-    modalContainer.appendChild(headerSection);
+    // Create header with close button
+    const headerDiv = document.createElement('div');
+    headerDiv.classList.add('raw-metadata-header');
+    modalDialog.appendChild(headerDiv);
+    
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = 'Raw Metadata';
+    titleSpan.classList.add('raw-metadata-title');
+    headerDiv.appendChild(titleSpan);
 
     const closeButton = document.createElement('span');
-    closeButton.classList.add('raw-metadata-close');
     closeButton.innerHTML = '×';
+    closeButton.classList.add('raw-metadata-close');
     closeButton.onclick = () => this.closeFullscreenView();
-    headerSection.appendChild(closeButton);
+    headerDiv.appendChild(closeButton);
 
-    const metadataContent = document.createElement('div');
-    metadataContent.classList.add('raw-metadata-content');
-    modalContainer.appendChild(metadataContent);
+    // Create content area with textarea
+    const contentDiv = document.createElement('div');
+    contentDiv.classList.add('raw-metadata-content');
+    modalDialog.appendChild(contentDiv);
 
-    const metadataTextarea = document.createElement('textarea');
-    metadataTextarea.value = JSON.stringify(metadata, null, 2);
-    metadataContent.appendChild(metadataTextarea);
+    const textArea = document.createElement('textarea');
+    textArea.readOnly = true;
+    textArea.spellcheck = false;
+    textArea.value = JSON.stringify(metadata, null, 2);
+    contentDiv.appendChild(textArea);
 
-    this.rawMetadataWindow.style.display = 'none'; // We're not using the original raw metadata window
+    // Reset any original windows
     this.infoWindow.style.display = 'none';
+    this.rawMetadataWindow.style.display = 'none';
     this.fullscreenImage = null;
-
+    
     this.galleryPopup.style.zIndex = '1001';
 }
 

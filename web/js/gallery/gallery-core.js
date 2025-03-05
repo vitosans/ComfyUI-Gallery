@@ -478,40 +478,53 @@ function applyStyles() {
         }
         .raw-metadata-button:hover { background-color: #777; }
 
-        /* Raw metadata window */
-        .raw-metadata-window {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
+        /* Raw metadata dialog */
+        .raw-metadata-dialog {
             background-color: #222;
             color: #eee;
             border-radius: 8px;
-            padding: 20px;
             width: 65%;
-            height: 70vh;
-            overflow: auto;
-            z-index: 2002;
-            transform: translate(-50%, -50%);
+            max-height: 70vh;
+            overflow: hidden;
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+            display: flex;
             flex-direction: column;
         }
 
+        .raw-metadata-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #333;
+            border-bottom: 1px solid #444;
+        }
+
+        .raw-metadata-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
         .raw-metadata-content {
-            width: 100%;
-            height: 100%;
+            padding: 0;
+            flex: 1;
+            max-height: calc(70vh - 60px);
+            overflow: hidden;
         }
 
         .raw-metadata-content textarea {
             width: 100%;
             height: 100%;
-            background-color: #444;
+            min-height: 300px;
+            background-color: #2a2a2a;
             color: #eee;
             border: none;
-            padding: 10px;
+            padding: 15px;
             font-family: monospace;
             font-size: 14px;
             box-sizing: border-box;
+            overflow: auto;
+            resize: none;
         }
 
         /* The fullscreen image view still needs absolute positioning for the close button */
