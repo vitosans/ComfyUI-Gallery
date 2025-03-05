@@ -402,7 +402,7 @@ function applyStyles() {
             color: #eee;
             border-radius: 8px;
             padding: 20px;
-            max-width: 80%;
+            width: 65%;
             max-height: 80%;
             overflow-y: auto;
             position: relative;
@@ -473,8 +473,8 @@ function applyStyles() {
             color: #eee;
             border-radius: 8px;
             padding: 20px;
-            width: 70vw;
-            height: 80vh;
+            width: 65%;
+            height: 70vh;
             overflow: auto;
             z-index: 2002;
             transform: translate(-50%, -50%);
