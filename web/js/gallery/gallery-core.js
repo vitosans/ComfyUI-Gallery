@@ -376,16 +376,25 @@ function applyStyles() {
             flex-direction: column;
         }
 
+        /* Header sections for modal windows */
+        .info-header, .raw-metadata-header {
+            display: flex;
+            justify-content: flex-end;
+            width: 100%;
+            padding: 0 0 10px 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #444;
+            position: relative;
+        }
+        
         /* Close buttons */
         .fullscreen-close, .info-close, .raw-metadata-close {
-            position: absolute;
-            top: 20px;
-            right: 30px;
             color: #fff;
             font-size: 30px;
             font-weight: bold;
             cursor: pointer;
             z-index: 2001;
+            line-height: 1;
         }
 
         /* Fullscreen image */
@@ -449,6 +458,13 @@ function applyStyles() {
             word-break: break-word;
         }
 
+        .info-footer {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #444;
+            width: 100%;
+        }
+        
         .raw-metadata-button {
             background-color: #555;
             color: #eee;
@@ -458,8 +474,7 @@ function applyStyles() {
             cursor: pointer;
             border-radius: 4px;
             transition: background-color 0.3s ease;
-            align-self: flex-start;
-            margin-top: 15px;
+            margin-top: 5px;
         }
         .raw-metadata-button:hover { background-color: #777; }
 
@@ -499,7 +514,12 @@ function applyStyles() {
             box-sizing: border-box;
         }
 
-        .raw-metadata-close { top: 10px; }
+        /* The fullscreen image view still needs absolute positioning for the close button */
+        .fullscreen-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+        }
 
         /* Date separators */
         .date-separator {

@@ -33,11 +33,16 @@ function showInfoWindow(metadata, imageUrl) {
     modalContainer.classList.add('info-window');
     this.fullscreenContainer.appendChild(modalContainer);
 
+    // Create a header section for the close button
+    const headerSection = document.createElement('div');
+    headerSection.classList.add('info-header');
+    modalContainer.appendChild(headerSection);
+
     const closeButton = document.createElement('span');
     closeButton.classList.add('info-close');
     closeButton.innerHTML = '×';
     closeButton.onclick = () => this.closeFullscreenView();
-    modalContainer.appendChild(closeButton);
+    headerSection.appendChild(closeButton);
 
     const infoContent = document.createElement('div');
     infoContent.classList.add('info-content');
@@ -118,6 +123,10 @@ function populateInfoWindowContent(infoContent, metadata, imageUrl) {
     }
     addMetadataRow("LoRAs", loras.length > 0 ? loras.join(', ') : 'N/A');
 
+    // Create a footer section for the raw metadata button
+    const footerSection = document.createElement('div');
+    footerSection.classList.add('info-footer');
+    
     // Button to show raw metadata
     const rawMetadataButton = document.createElement('button');
     rawMetadataButton.textContent = 'Show Raw Metadata';
@@ -126,7 +135,9 @@ function populateInfoWindowContent(infoContent, metadata, imageUrl) {
         event.stopPropagation();
         this.showRawMetadataWindow(metadata);
     };
-    infoContent.appendChild(rawMetadataButton);
+    
+    footerSection.appendChild(rawMetadataButton);
+    metadataTable.appendChild(footerSection);
 }
 
 function showRawMetadataWindow(metadata) {
@@ -138,11 +149,16 @@ function showRawMetadataWindow(metadata) {
     modalContainer.classList.add('raw-metadata-window');
     this.fullscreenContainer.appendChild(modalContainer);
 
+    // Create a header section for the close button
+    const headerSection = document.createElement('div');
+    headerSection.classList.add('raw-metadata-header');
+    modalContainer.appendChild(headerSection);
+
     const closeButton = document.createElement('span');
     closeButton.classList.add('raw-metadata-close');
     closeButton.innerHTML = '×';
     closeButton.onclick = () => this.closeFullscreenView();
-    modalContainer.appendChild(closeButton);
+    headerSection.appendChild(closeButton);
 
     const metadataContent = document.createElement('div');
     metadataContent.classList.add('raw-metadata-content');
