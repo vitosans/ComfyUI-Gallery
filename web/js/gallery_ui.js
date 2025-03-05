@@ -1,8 +1,10 @@
 import { app } from "../../scripts/app.js";
-import { Gallery, gallery } from "./gallery/index.js";
+import { Gallery, setGalleryInstance, getGalleryInstance } from "./gallery/index.js";
 
 // Now the Gallery is defined in the gallery module
-// and the registerExtension is in gallery-core.js
+// Keep track of gallery instance locally as well
+let gallery = null;
+
 app.registerExtension({
     name: "Gallery",
     init() {
@@ -20,6 +22,8 @@ app.registerExtension({
                 const menu = document.getElementsByClassName("flex gap-2 mx-2")[0];
                 if (menu) {
                     gallery = new Gallery({ openButtonBox: menu, folders: data.folders || {} });
+                    // Store the gallery instance in the module for access from other parts
+                    setGalleryInstance(gallery);
                 }
             });
     },
@@ -28,10 +32,18 @@ app.registerExtension({
             const onRemoved = node.onRemoved;
             node.onRemoved = () => {
                 if (onRemoved) { onRemoved.apply(node); }
-                if (gallery) { gallery.closeGallery(); }
+                // Use either the local instance or get it from the module
+                const galleryInstance = gallery || getGalleryInstance();
+                if (galleryInstance) {
+                    galleryInstance.closeGallery();
+                }
             };
             node.addWidget("button", "Open Gallery", null, () => {
-                if (gallery) { gallery.openGallery(); }
+                // Use either the local instance or get it from the module
+                const galleryInstance = gallery || getGalleryInstance();
+                if (galleryInstance) {
+                    galleryInstance.openGallery();
+                }
             });
         }
     },
@@ -40,24 +52,30 @@ app.registerExtension({
 // Event listeners
 app.api.addEventListener("Gallery.file_change", (event) => {
     console.log("file_change:", event);
-    if (gallery) {
+    // Use either the local instance or get it from the module
+    const galleryInstance = gallery || getGalleryInstance();
+    if (galleryInstance) {
         app.api.fetchApi("/Gallery/images")
             .then(response => response.text())
             .then(text => JSON.parse(text))
-            .then(data => gallery.updateImages(data.folders || {}));
+            .then(data => galleryInstance.updateImages(data.folders || {}));
     }
 });
 
 app.api.addEventListener("Gallery.update", (event) => {
     console.log("update:", event);
-    if (gallery) {
-        gallery.updateImages(event.detail.folders);
+    // Use either the local instance or get it from the module
+    const galleryInstance = gallery || getGalleryInstance();
+    if (galleryInstance) {
+        galleryInstance.updateImages(event.detail.folders);
     }
 });
 
 app.api.addEventListener("Gallery.clear", (event) => {
     console.log("clear:", event);
-    if (gallery) {
-        gallery.clearGallery();
+    // Use either the local instance or get it from the module
+    const galleryInstance = gallery || getGalleryInstance();
+    if (galleryInstance) {
+        galleryInstance.clearGallery();
     }
 });
