@@ -99,6 +99,7 @@ async def get_gallery_images(request):
             os.path.join(folder_paths.get_output_directory(), "..", "output"), "output", True
         )
 
+        # Empty folders are now filtered out in gallery_node._scan_for_images
         sanitized_folders = sanitize_json_data(folders_with_metadata)
         json_string = json.dumps({"folders": sanitized_folders})
         return web.Response(text=json_string, content_type="application/json")
