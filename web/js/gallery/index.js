@@ -5,6 +5,9 @@
 
 // Import from gallery-core.js, which imports other modules
 import { Gallery } from './gallery-core.js';
+import { app } from "../../../scripts/app.js";
 
-// Export to be used in the main gallery_ui.js file
-export { Gallery };
+let gallery;
+
+// Export the Gallery class for use in other modules
+export { Gallery, gallery };
