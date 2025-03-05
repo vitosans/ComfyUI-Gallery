@@ -62,80 +62,119 @@ def buildMetadata(image_path):
                         
                         # Try to dynamically extract information from the prompt structure
                         try:
-                            # Look for node that contains text input for positive prompt
-                            # These can vary between workflows so we use several approaches
+                            # Process all nodes dynamically to extract metadata regardless of node ID
                             for node_id, node in prompt.items():
-                                # Check if this is a CLIP text encode node
-                                if node.get("class_type") in ["CLIPTextEncode", "CLIPTextEncodeSDXL", "CLIPTextEncodeSDXLRefiner"]:
-                                    # Check if it's not a negative prompt
-                                    node_title = node.get("_meta", {}).get("title", "")
-                                    if "negative" not in node_title.lower() and "text" in node.get("inputs", {}):
-                                        text_input = node["inputs"].get("text", "")
-                                        if text_input and isinstance(text_input, str) and len(text_input) > 5:
-                                            metadata["positive_prompt"] = text_input
-                                            break
+                                # Process node based on class_type
+                                class_type = node.get("class_type", "")
+                                node_title = node.get("_meta", {}).get("title", "")
                                 
-                                # Check scheduler for steps and other params
-                                if node.get("class_type") in ["BasicScheduler", "KarrasScheduler"]:
-                                    if "steps" in node.get("inputs", {}):
-                                        steps = node["inputs"].get("steps", "")
-                                        if steps:
-                                            metadata["steps"] = str(steps)
-                                
-                                # Check for samplers
-                                if node.get("class_type") in ["KSamplerSelect", "KSampler", "KSamplerAdvanced"]:
-                                    if "sampler_name" in node.get("inputs", {}):
-                                        sampler = node["inputs"].get("sampler_name", "")
-                                        if sampler:
-                                            metadata["sampler"] = str(sampler)
-                                
-                                # Look for CFG in samplers
-                                if "cfg" in node.get("inputs", {}):
-                                    cfg = node["inputs"].get("cfg", "")
-                                    if cfg:
-                                        metadata["cfg_scale"] = str(cfg)
-                                        
-                                # Look for seed
-                                if "seed" in node.get("inputs", {}):
-                                    seed = node["inputs"].get("seed", "")
-                                    if seed:
-                                        metadata["seed"] = str(seed)
-                                
-                                # Look for negative prompt
-                                if node.get("class_type") in ["CLIPTextEncode", "CLIPTextEncodeSDXL", "CLIPTextEncodeSDXLRefiner"]:
-                                    node_title = node.get("_meta", {}).get("title", "")
-                                    if "negative" in node_title.lower() and "text" in node.get("inputs", {}):
+                                # Handle CLIPTextEncode (prompt nodes)
+                                if class_type in ["CLIPTextEncode", "CLIPTextEncodeSDXL", "CLIPTextEncodeSDXLRefiner"]:
+                                    if "text" in node.get("inputs", {}):
                                         text_input = node["inputs"].get("text", "")
                                         if text_input and isinstance(text_input, str):
-                                            metadata["negative_prompt"] = text_input
+                                            # Determine if positive or negative prompt based on node title
+                                            if "negative" in node_title.lower():
+                                                if len(text_input) > 0: # Include empty negative prompts
+                                                    metadata["negative_prompt"] = text_input
+                                            elif len(text_input) > 5:  # Minimum length for positive prompts
+                                                metadata["positive_prompt"] = text_input
+                                
+                                # Handle scheduler parameters
+                                if class_type in ["BasicScheduler", "KarrasScheduler"]:
+                                    inputs = node.get("inputs", {})
+                                    if "steps" in inputs:
+                                        metadata["steps"] = str(inputs["steps"])
+                                    if "scheduler" in inputs:
+                                        metadata["scheduler"] = str(inputs["scheduler"])
+                                    if "denoise" in inputs:
+                                        metadata["denoise"] = str(inputs["denoise"])
+                                
+                                # Handle sampler parameters
+                                if class_type in ["KSamplerSelect", "KSampler", "KSamplerAdvanced"]:
+                                    inputs = node.get("inputs", {})
+                                    if "sampler_name" in inputs:
+                                        metadata["sampler"] = str(inputs["sampler_name"])
+                                
+                                # Handle guidance/CFG
+                                if "cfg" in node.get("inputs", {}):
+                                    metadata["cfg_scale"] = str(node["inputs"]["cfg"])
+                                elif class_type == "FluxGuidance" and "guidance" in node.get("inputs", {}):
+                                    metadata["guidance"] = str(node["inputs"]["guidance"])
+                                
+                                # Handle seed - generic approach for any node with seed
+                                if any(seed_key in node.get("inputs", {}) for seed_key in ["seed", "noise_seed"]):
+                                    for seed_key in ["seed", "noise_seed"]:
+                                        if seed_key in node.get("inputs", {}):
+                                            seed_val = node["inputs"][seed_key]
+                                            # Handle seed when it's a direct value or a reference to another node
+                                            if isinstance(seed_val, (int, str)):
+                                                metadata["seed"] = str(seed_val)
+                                            elif isinstance(seed_val, list) and len(seed_val) == 2:
+                                                # This is a reference to another node's output (like Seed Everywhere)
+                                                # We'll handle Seed Everywhere nodes specifically
+                                                ref_node_id = str(seed_val[0])
+                                                if ref_node_id in prompt:
+                                                    ref_node = prompt[ref_node_id]
+                                                    if ref_node.get("class_type") == "Seed Everywhere":
+                                                        if "seed" in ref_node.get("inputs", {}):
+                                                            metadata["seed"] = str(ref_node["inputs"]["seed"])
+                                
+                                # Handle model loaders
+                                if class_type in ["CheckpointLoaderSimple", "UNETLoader", "DiffusersLoader", "UnetLoaderGGUF"]:
+                                    for key in ["ckpt_name", "unet_name", "model_name"]:
+                                        if key in node.get("inputs", {}) and isinstance(node["inputs"][key], str):
+                                            metadata["model"] = node["inputs"][key]
                                             break
                                 
-                                # Look for model name
-                                if node.get("class_type") in ["CheckpointLoaderSimple", "UNETLoader", "DiffusersLoader"]:
-                                    for key in ["ckpt_name", "unet_name", "model_name"]:
-                                        if key in node.get("inputs", {}):
-                                            model = node["inputs"].get(key, "")
-                                            if model and isinstance(model, str):
-                                                metadata["model"] = model
-                                                break
+                                # Special handling for Switch any [Crystools] which might contain model nodes
+                                if class_type == "Switch any [Crystools]" and "on_true" in node.get("inputs", {}):
+                                    if isinstance(node["inputs"]["on_true"], list) and len(node["inputs"]["on_true"]) == 2:
+                                        ref_node_id = str(node["inputs"]["on_true"][0])
+                                        if ref_node_id in prompt:
+                                            ref_node = prompt[ref_node_id]
+                                            if ref_node.get("class_type") in ["UNETLoader", "UnetLoaderGGUF"]:
+                                                for key in ["unet_name", "model_name"]:
+                                                    if key in ref_node.get("inputs", {}):
+                                                        metadata["model"] = ref_node["inputs"][key]
                                 
-                                # Look for LoRA nodes
-                                if "lora" in node.get("class_type", "").lower() or "lora" in node_title.lower():
-                                    # Different LoRA loaders have different formats
-                                    for key in ["lora_name", "lora"]:
-                                        if key in node.get("inputs", {}):
-                                            lora = node["inputs"].get(key, "")
-                                            if lora and isinstance(lora, str):
-                                                metadata["lora"] = lora
-                                                break
+                                # Handle LoRA loaders (multiple formats)
+                                if "lora" in class_type.lower() or "lora" in node_title.lower():
+                                    # Track all LoRAs
+                                    if "loras" not in metadata:
+                                        metadata["loras"] = []
                                     
-                                    # Check for Power Lora Loader style
+                                    # Standard LoRA format
+                                    for key in ["lora_name", "lora"]:
+                                        if key in node.get("inputs", {}) and isinstance(node["inputs"][key], str):
+                                            lora_path = node["inputs"][key]
+                                            if "lora" not in metadata:
+                                                metadata["lora"] = lora_path
+                                            
+                                            lora_info = {
+                                                "name": lora_path.split("/")[-1].split(".")[0] if "/" in lora_path else lora_path,
+                                                "path": lora_path,
+                                                "strength": 1.0  # Default strength
+                                            }
+                                            metadata["loras"].append(lora_info)
+                                            break
+                                    
+                                    # Handle nested lora structure in Power Lora Loader
                                     for key, value in node.get("inputs", {}).items():
+                                        # Handle lora_1, lora_2, etc. entries in Power Lora Loader
                                         if key.startswith("lora_") and isinstance(value, dict) and value.get("on", False):
-                                            lora = value.get("lora", "")
-                                            if lora and isinstance(lora, str):
-                                                metadata["lora"] = lora
-                                                break
+                                            lora_path = value.get("lora", "")
+                                            if lora_path and isinstance(lora_path, str):
+                                                # Store the first LoRA in the traditional lora field if not set yet
+                                                if "lora" not in metadata:
+                                                    metadata["lora"] = lora_path
+                                                
+                                                lora_info = {
+                                                    "name": lora_path.split("/")[-1].split(".")[0] if "/" in lora_path else lora_path,
+                                                    "path": lora_path,
+                                                    "strength": value.get("strength", 1.0)
+                                                }
+                                                metadata["loras"].append(lora_info)
                         except Exception as e:
                             print(f"Warning: Error dynamically extracting metadata from prompt structure: {e}")
                             
@@ -278,11 +317,24 @@ def buildPreviewText(metadata):
         text += f"Scheduler: {metadata['scheduler']}\n"
     if "steps" in metadata:
         text += f"Steps: {metadata['steps']}\n"
-    if "cfg_scale" in metadata:
+    if "guidance" in metadata:
+        text += f"Guidance: {metadata['guidance']}\n"
+    elif "cfg_scale" in metadata:
         text += f"CFG Scale: {metadata['cfg_scale']}\n"
+    if "denoise" in metadata:
+        text += f"Denoise: {metadata['denoise']}\n"
     if "seed" in metadata:
         text += f"Seed: {metadata['seed']}\n"
+    
+    # Handle LoRAs - show both single lora and multiple loras if available
     if "lora" in metadata:
         text += f"LoRA: {metadata['lora']}\n"
+    
+    if "loras" in metadata and metadata["loras"]:
+        text += "LoRAs:\n"
+        for lora in metadata["loras"]:
+            name = lora.get("name", "")
+            strength = lora.get("strength", "1.0")
+            text += f"  - {name} (strength: {strength})\n"
         
     return text
