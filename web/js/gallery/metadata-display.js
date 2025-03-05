@@ -81,24 +81,32 @@ function populateInfoWindowContent(infoContent, metadata, imageUrl) {
     addMetadataRow("Resolution", metadata.fileinfo?.resolution);
     addMetadataRow("File Size", metadata.fileinfo?.size);
     addMetadataRow("Date Created", metadata.fileinfo?.date);
-    addMetadataRow("Model", metadata.prompt?.['1']?.inputs?.ckpt_name || metadata.prompt?.['1']?.inputs?.ckpt_name?.content);
-    addMetadataRow("Positive Prompt", metadata.prompt?.['2']?.inputs?.prompt || metadata.prompt?.['7']?.inputs?.text);
-    addMetadataRow("Negative Prompt", metadata.prompt?.['3']?.inputs?.prompt || metadata.prompt?.['8']?.inputs?.text);
-    addMetadataRow("Sampler", metadata.prompt?.['10']?.inputs?.sampler_name);
-    addMetadataRow("Scheduler", metadata.prompt?.['10']?.inputs?.scheduler);
-    addMetadataRow("Steps", metadata.prompt?.['10']?.inputs?.steps);
-    addMetadataRow("CFG Scale", metadata.prompt?.['10']?.inputs?.cfg);
-    addMetadataRow("Seed", metadata.prompt?.['10']?.inputs?.seed);
+    
+    // First try to use directly extracted metadata fields
+    addMetadataRow("Model", metadata.model || metadata.prompt?.['1']?.inputs?.ckpt_name || metadata.prompt?.['1']?.inputs?.ckpt_name?.content);
+    addMetadataRow("Positive Prompt", metadata.positive_prompt || metadata.prompt?.['2']?.inputs?.prompt || metadata.prompt?.['7']?.inputs?.text);
+    addMetadataRow("Negative Prompt", metadata.negative_prompt || metadata.prompt?.['3']?.inputs?.prompt || metadata.prompt?.['8']?.inputs?.text);
+    addMetadataRow("Sampler", metadata.sampler || metadata.prompt?.['10']?.inputs?.sampler_name);
+    addMetadataRow("Scheduler", metadata.scheduler || metadata.prompt?.['10']?.inputs?.scheduler);
+    addMetadataRow("Steps", metadata.steps || metadata.prompt?.['10']?.inputs?.steps);
+    addMetadataRow("CFG Scale", metadata.cfg_scale || metadata.prompt?.['10']?.inputs?.cfg);
+    addMetadataRow("Seed", metadata.seed || metadata.prompt?.['10']?.inputs?.seed);
 
     // Extract and display LoRAs
     let loras = [];
-    for (const key in metadata.prompt) {
-        if (metadata.prompt[key].class_type === 'LoraLoader') {
-            loras.push(metadata.prompt[key].inputs.lora_name);
-        } else if (metadata.prompt[key].class_type === 'Power Lora Loader (rgthree)') {
-            for (let loraKey in metadata.prompt[key].inputs) {
-                if (loraKey.startsWith('lora_') && metadata.prompt[key].inputs[loraKey].on) {
-                    loras.push(metadata.prompt[key].inputs[loraKey].lora);
+    // First check if we have extracted lora directly
+    if (metadata.lora) {
+        loras.push(metadata.lora);
+    } else {
+        // Extract from prompt structure
+        for (const key in metadata.prompt) {
+            if (metadata.prompt[key].class_type === 'LoraLoader') {
+                loras.push(metadata.prompt[key].inputs.lora_name);
+            } else if (metadata.prompt[key].class_type === 'Power Lora Loader (rgthree)') {
+                for (let loraKey in metadata.prompt[key].inputs) {
+                    if (loraKey.startsWith('lora_') && metadata.prompt[key].inputs[loraKey].on) {
+                        loras.push(metadata.prompt[key].inputs[loraKey].lora);
+                    }
                 }
             }
         }
