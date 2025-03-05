@@ -59,6 +59,86 @@ def buildMetadata(image_path):
                     try:
                         metadata["prompt"] = json.loads(v)
                         prompt = metadata["prompt"] # extract prompt to use on metadata
+                        
+                        # Try to dynamically extract information from the prompt structure
+                        try:
+                            # Look for node that contains text input for positive prompt
+                            # These can vary between workflows so we use several approaches
+                            for node_id, node in prompt.items():
+                                # Check if this is a CLIP text encode node
+                                if node.get("class_type") in ["CLIPTextEncode", "CLIPTextEncodeSDXL", "CLIPTextEncodeSDXLRefiner"]:
+                                    # Check if it's not a negative prompt
+                                    node_title = node.get("_meta", {}).get("title", "")
+                                    if "negative" not in node_title.lower() and "text" in node.get("inputs", {}):
+                                        text_input = node["inputs"].get("text", "")
+                                        if text_input and isinstance(text_input, str) and len(text_input) > 5:
+                                            metadata["positive_prompt"] = text_input
+                                            break
+                                
+                                # Check scheduler for steps and other params
+                                if node.get("class_type") in ["BasicScheduler", "KarrasScheduler"]:
+                                    if "steps" in node.get("inputs", {}):
+                                        steps = node["inputs"].get("steps", "")
+                                        if steps:
+                                            metadata["steps"] = str(steps)
+                                
+                                # Check for samplers
+                                if node.get("class_type") in ["KSamplerSelect", "KSampler", "KSamplerAdvanced"]:
+                                    if "sampler_name" in node.get("inputs", {}):
+                                        sampler = node["inputs"].get("sampler_name", "")
+                                        if sampler:
+                                            metadata["sampler"] = str(sampler)
+                                
+                                # Look for CFG in samplers
+                                if "cfg" in node.get("inputs", {}):
+                                    cfg = node["inputs"].get("cfg", "")
+                                    if cfg:
+                                        metadata["cfg_scale"] = str(cfg)
+                                        
+                                # Look for seed
+                                if "seed" in node.get("inputs", {}):
+                                    seed = node["inputs"].get("seed", "")
+                                    if seed:
+                                        metadata["seed"] = str(seed)
+                                
+                                # Look for negative prompt
+                                if node.get("class_type") in ["CLIPTextEncode", "CLIPTextEncodeSDXL", "CLIPTextEncodeSDXLRefiner"]:
+                                    node_title = node.get("_meta", {}).get("title", "")
+                                    if "negative" in node_title.lower() and "text" in node.get("inputs", {}):
+                                        text_input = node["inputs"].get("text", "")
+                                        if text_input and isinstance(text_input, str):
+                                            metadata["negative_prompt"] = text_input
+                                            break
+                                
+                                # Look for model name
+                                if node.get("class_type") in ["CheckpointLoaderSimple", "UNETLoader", "DiffusersLoader"]:
+                                    for key in ["ckpt_name", "unet_name", "model_name"]:
+                                        if key in node.get("inputs", {}):
+                                            model = node["inputs"].get(key, "")
+                                            if model and isinstance(model, str):
+                                                metadata["model"] = model
+                                                break
+                                
+                                # Look for LoRA nodes
+                                if "lora" in node.get("class_type", "").lower() or "lora" in node_title.lower():
+                                    # Different LoRA loaders have different formats
+                                    for key in ["lora_name", "lora"]:
+                                        if key in node.get("inputs", {}):
+                                            lora = node["inputs"].get(key, "")
+                                            if lora and isinstance(lora, str):
+                                                metadata["lora"] = lora
+                                                break
+                                    
+                                    # Check for Power Lora Loader style
+                                    for key, value in node.get("inputs", {}).items():
+                                        if key.startswith("lora_") and isinstance(value, dict) and value.get("on", False):
+                                            lora = value.get("lora", "")
+                                            if lora and isinstance(lora, str):
+                                                metadata["lora"] = lora
+                                                break
+                        except Exception as e:
+                            print(f"Warning: Error dynamically extracting metadata from prompt structure: {e}")
+                            
                     except json.JSONDecodeError as e:
                         print(f"Warning: Error parsing metadataFromImg 'prompt' as JSON, keeping as string: {e}")
                         metadata["prompt"] = v # Keep as string if parsing fails
