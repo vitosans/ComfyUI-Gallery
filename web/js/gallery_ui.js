@@ -1,8 +1,8 @@
 import { app } from "../../scripts/app.js";
-import { Gallery } from "./gallery/index.js";
+import { Gallery, gallery } from "./gallery/index.js";
 
-let gallery;
-
+// Now the Gallery is defined in the gallery module
+// and the registerExtension is in gallery-core.js
 app.registerExtension({
     name: "Gallery",
     init() {
@@ -37,6 +37,7 @@ app.registerExtension({
     },
 });
 
+// Event listeners
 app.api.addEventListener("Gallery.file_change", (event) => {
     console.log("file_change:", event);
     if (gallery) {
