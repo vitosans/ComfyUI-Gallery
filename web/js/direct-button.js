@@ -46,10 +46,15 @@
             }
         }
         
-        // If still no menu found, just add to body
+        // If still no menu found, create a container element
         if (!menuElement) {
-            console.warn('No menu element found, adding button to body');
-            menuElement = document.body;
+            console.warn('No menu element found, creating floating container');
+            menuElement = document.createElement('div');
+            menuElement.style.position = 'fixed';
+            menuElement.style.top = '10px';
+            menuElement.style.right = '10px';
+            menuElement.style.zIndex = '9999';
+            document.body.appendChild(menuElement);
         }
         
         // Check if button already exists
@@ -58,48 +63,165 @@
             return;
         }
         
-        // Create the button
+        // Create the button with enhanced visibility
         const button = document.createElement('button');
         button.id = 'direct-gallery-btn';
         button.textContent = 'Gallery';
         button.style.backgroundColor = '#3498db';
         button.style.color = 'white';
-        button.style.border = 'none';
-        button.style.padding = '5px 10px';
+        button.style.border = '2px solid #2980b9';
+        button.style.padding = '8px 15px';
         button.style.margin = '5px';
         button.style.borderRadius = '4px';
         button.style.cursor = 'pointer';
         button.style.fontSize = '14px';
         button.style.fontWeight = 'bold';
+        button.style.display = 'inline-block';
+        button.style.opacity = '1';
+        button.style.visibility = 'visible';
+        button.style.zIndex = '9999';
         
-        // Add click event
+        // Add hover effects
+        button.onmouseover = function() {
+            this.style.backgroundColor = '#2980b9';
+        };
+        
+        button.onmouseout = function() {
+            this.style.backgroundColor = '#3498db';
+        };
+        
+        // Add click event with improved handling
         button.addEventListener('click', function() {
             console.log('Gallery button clicked');
-            alert('Gallery button clicked. The full Gallery implementation could not be loaded. Please check the browser console for errors.');
             
-            // Try to open gallery if it exists in the global scope
+            // Check for gallery in window object
             try {
                 if (window.gallery && typeof window.gallery.openGallery === 'function') {
+                    console.log('Opening gallery via window.gallery');
                     window.gallery.openGallery();
-                } else if (window.getGalleryInstance && typeof window.getGalleryInstance === 'function') {
+                    return;
+                } 
+                
+                if (window.getGalleryInstance && typeof window.getGalleryInstance === 'function') {
                     const galleryInstance = window.getGalleryInstance();
                     if (galleryInstance && typeof galleryInstance.openGallery === 'function') {
+                        console.log('Opening gallery via galleryInstance');
                         galleryInstance.openGallery();
+                        return;
                     }
                 }
+                
+                if (window.galleryModule && window.galleryModule.Gallery) {
+                    console.log('Creating new gallery instance from galleryModule');
+                    // Create new gallery instance
+                    const galleryInstance = new window.galleryModule.Gallery({
+                        openButtonBox: menuElement,
+                        folders: {}
+                    });
+                    
+                    if (window.galleryModule.setGalleryInstance) {
+                        window.galleryModule.setGalleryInstance(galleryInstance);
+                    }
+                    
+                    window.gallery = galleryInstance;
+                    galleryInstance.openGallery();
+                    return;
+                }
+                
+                console.log('No gallery implementation found, creating fallback');
+                createFallbackGallery();
             } catch (err) {
                 console.error('Error trying to open gallery:', err);
+                alert('Could not open gallery. See console for details.');
             }
         });
         
         // Add the button to the menu
         menuElement.appendChild(button);
         console.log('Gallery button created and added to', menuElement);
+        
+        // Create a floating version if button might be hidden
+        setTimeout(() => {
+            // Check if button is visible
+            if (button.offsetParent === null) {
+                console.log('Button may be hidden, creating floating button');
+                const floatingButton = button.cloneNode(true);
+                floatingButton.id = 'direct-gallery-floating-btn';
+                floatingButton.style.position = 'fixed';
+                floatingButton.style.top = '10px';
+                floatingButton.style.right = '10px';
+                floatingButton.style.zIndex = '100000';
+                floatingButton.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+                document.body.appendChild(floatingButton);
+            }
+        }, 1000);
+    }
+    
+    // Function to create a fallback gallery
+    function createFallbackGallery() {
+        // Check if popup already exists
+        if (document.getElementById('gallery-fallback-popup')) {
+            document.getElementById('gallery-fallback-popup').style.display = 'flex';
+            return;
+        }
+        
+        // Create popup container
+        const popup = document.createElement('div');
+        popup.id = 'gallery-fallback-popup';
+        popup.style.position = 'fixed';
+        popup.style.top = '0';
+        popup.style.left = '0';
+        popup.style.width = '100%';
+        popup.style.height = '100%';
+        popup.style.backgroundColor = 'rgba(0,0,0,0.8)';
+        popup.style.zIndex = '100000';
+        popup.style.display = 'flex';
+        popup.style.justifyContent = 'center';
+        popup.style.alignItems = 'center';
+        
+        // Create popup content
+        const content = document.createElement('div');
+        content.style.backgroundColor = '#222';
+        content.style.color = '#fff';
+        content.style.padding = '20px';
+        content.style.borderRadius = '8px';
+        content.style.maxWidth = '500px';
+        content.style.textAlign = 'center';
+        
+        // Create title
+        const title = document.createElement('h2');
+        title.textContent = 'ComfyUI Gallery';
+        
+        // Create message
+        const message = document.createElement('p');
+        message.textContent = 'Gallery implementation not found. Check console for details.';
+        
+        // Create close button
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Close';
+        closeButton.style.backgroundColor = '#e74c3c';
+        closeButton.style.color = 'white';
+        closeButton.style.border = 'none';
+        closeButton.style.padding = '8px 16px';
+        closeButton.style.margin = '10px';
+        closeButton.style.borderRadius = '4px';
+        closeButton.style.cursor = 'pointer';
+        
+        closeButton.onclick = function() {
+            popup.style.display = 'none';
+        };
+        
+        // Assemble popup
+        content.appendChild(title);
+        content.appendChild(message);
+        content.appendChild(closeButton);
+        popup.appendChild(content);
+        document.body.appendChild(popup);
     }
     
     // Function to ensure button is added when DOM is ready
     function ensureButtonExists() {
-        if (!document.getElementById('direct-gallery-btn')) {
+        if (!document.getElementById('direct-gallery-btn') && !document.getElementById('direct-gallery-floating-btn')) {
             createGalleryButton();
         }
     }
@@ -112,25 +234,44 @@
     setTimeout(ensureButtonExists, 500);
     setTimeout(ensureButtonExists, 1000);
     setTimeout(ensureButtonExists, 2000);
-    setTimeout(ensureButtonExists, 5000);
+    
+    // Always create a floating button after 3 seconds
+    setTimeout(() => {
+        if (!document.getElementById('direct-gallery-floating-btn')) {
+            const floatingButton = document.createElement('button');
+            floatingButton.id = 'direct-gallery-floating-btn';
+            floatingButton.textContent = 'Gallery';
+            floatingButton.style.position = 'fixed';
+            floatingButton.style.top = '10px';
+            floatingButton.style.right = '10px';
+            floatingButton.style.zIndex = '100000';
+            floatingButton.style.backgroundColor = '#3498db';
+            floatingButton.style.color = 'white';
+            floatingButton.style.border = '2px solid #2980b9';
+            floatingButton.style.padding = '8px 15px';
+            floatingButton.style.borderRadius = '4px';
+            floatingButton.style.cursor = 'pointer';
+            floatingButton.style.fontWeight = 'bold';
+            floatingButton.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+            
+            floatingButton.onclick = function() {
+                if (window.gallery && typeof window.gallery.openGallery === 'function') {
+                    window.gallery.openGallery();
+                } else {
+                    createFallbackGallery();
+                }
+            };
+            
+            document.body.appendChild(floatingButton);
+            console.log('Created fallback floating button');
+        }
+    }, 3000);
     
     // Try again when DOM content is loaded
     document.addEventListener('DOMContentLoaded', ensureButtonExists);
     
     // Try again when window is fully loaded
     window.addEventListener('load', ensureButtonExists);
-    
-    // Keep checking every second for a while
-    let attempts = 0;
-    const intervalId = setInterval(function() {
-        attempts++;
-        ensureButtonExists();
-        
-        // Stop checking after 20 attempts (20 seconds)
-        if (attempts >= 20) {
-            clearInterval(intervalId);
-        }
-    }, 1000);
     
     console.log('=== DIRECT GALLERY BUTTON SCRIPT FINISHED ===');
 })();
