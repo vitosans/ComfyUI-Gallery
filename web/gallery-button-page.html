@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gallery Button Loader</title>
+    <script>
+        // This script runs when ComfyUI loads this page via iframe
+        console.log('Gallery Button Page Loaded');
+    </script>
+</head>
+<body>
+    <script>
+        (function() {
+            console.log('Gallery Button Page: Creating button');
+            
+            // Function to create the gallery button
+            function createGalleryButton() {
+                try {
+                    if (window.parent && window.parent.document) {
+                        // We can access the parent document (ComfyUI)
+                        const parentDoc = window.parent.document;
+                        
+                        if (!parentDoc.getElementById('gallery-iframe-button')) {
+                            console.log('Gallery Button Page: Adding button to parent document');
+                            
+                            const button = parentDoc.createElement('button');
+                            button.id = 'gallery-iframe-button';
+                            button.textContent = 'Gallery';
+                            button.style.backgroundColor = '#2c3e50';
+                            button.style.color = 'white';
+                            button.style.border = 'none';
+                            button.style.padding = '8px 15px';
+                            button.style.borderRadius = '4px';
+                            button.style.cursor = 'pointer';
+                            button.style.position = 'fixed';
+                            button.style.top = '20px';
+                            button.style.left = '20px';
+                            button.style.zIndex = '10000';
+                            button.style.fontWeight = 'bold';
+                            
+                            button.onclick = function() {
+                                alert('Gallery Button clicked from iframe!');
+                            };
+                            
+                            parentDoc.body.appendChild(button);
+                            console.log('Gallery Button Page: Button added to parent document');
+                        }
+                    } else {
+                        console.log('Gallery Button Page: Cannot access parent document');
+                    }
+                } catch (e) {
+                    console.error('Gallery Button Page: Error creating button:', e);
+                }
+            }
+            
+            // Try to create button now
+            createGalleryButton();
+            
+            // Also try after a delay
+            setTimeout(createGalleryButton, 1000);
+            setTimeout(createGalleryButton, 3000);
+            
+            // Try when the parent window is fully loaded
+            if (window.parent) {
+                window.parent.addEventListener('load', function() {
+                    setTimeout(createGalleryButton, 1000);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>
