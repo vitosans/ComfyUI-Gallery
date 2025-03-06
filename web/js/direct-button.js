@@ -1,5 +1,53 @@
 // Direct Gallery Button - Standalone script
 
+// Load standalone gallery script
+(function loadStandaloneGallery() {
+    // Check if script already loaded
+    if (document.getElementById('standalone-gallery-script')) {
+        return;
+    }
+    
+    console.log('Loading standalone gallery implementation');
+    
+    // Create script element
+    const script = document.createElement('script');
+    script.id = 'standalone-gallery-script';
+    script.src = './web/js/standalone-gallery.js';
+    script.onerror = function() {
+        console.warn('Failed to load standalone gallery from default path, trying alternatives');
+        
+        // Try alternate paths
+        const altPaths = [
+            '/extensions/ComfyUI-Gallery/web/js/standalone-gallery.js',
+            '../web/js/standalone-gallery.js',
+            '/web/js/standalone-gallery.js'
+        ];
+        
+        function tryLoadScript(index) {
+            if (index >= altPaths.length) {
+                console.error('Failed to load standalone gallery script from any path');
+                return;
+            }
+            
+            const altScript = document.createElement('script');
+            altScript.src = altPaths[index];
+            altScript.onload = function() {
+                console.log('Loaded standalone gallery from', altPaths[index]);
+            };
+            altScript.onerror = function() {
+                tryLoadScript(index + 1);
+            };
+            document.head.appendChild(altScript);
+        }
+        
+        tryLoadScript(0);
+    };
+    
+    // Add to document
+    document.head.appendChild(script);
+})();
+
+// Main direct button script
 (function() {
     console.log('=== DIRECT GALLERY BUTTON SCRIPT STARTED ===');
     
@@ -94,6 +142,18 @@
         button.addEventListener('click', function() {
             console.log('Gallery button clicked');
             
+            // Try to use standalone gallery first
+            if (window.StandaloneGallery) {
+                console.log('Using standalone gallery implementation');
+                if (!window.standaloneGallery) {
+                    window.standaloneGallery = new window.StandaloneGallery({
+                        openButtonBox: menuElement
+                    });
+                }
+                window.standaloneGallery.openGallery();
+                return;
+            }
+            
             // Check for gallery in window object
             try {
                 if (window.gallery && typeof window.gallery.openGallery === 'function') {
@@ -113,19 +173,25 @@
                 
                 if (window.galleryModule && window.galleryModule.Gallery) {
                     console.log('Creating new gallery instance from galleryModule');
-                    // Create new gallery instance
-                    const galleryInstance = new window.galleryModule.Gallery({
-                        openButtonBox: menuElement,
-                        folders: {}
-                    });
-                    
-                    if (window.galleryModule.setGalleryInstance) {
-                        window.galleryModule.setGalleryInstance(galleryInstance);
+                    try {
+                        // Create new gallery instance with required parameters
+                        const galleryInstance = new window.galleryModule.Gallery({
+                            openButtonBox: menuElement,
+                            folders: {},
+                            settings: {},
+                            gallerySettings: { openSettingsPopup: () => {} } // Stub for required parameter
+                        });
+                        
+                        if (window.galleryModule.setGalleryInstance) {
+                            window.galleryModule.setGalleryInstance(galleryInstance);
+                        }
+                        
+                        window.gallery = galleryInstance;
+                        galleryInstance.openGallery();
+                        return;
+                    } catch (err) {
+                        console.error('Error creating gallery from module:', err);
                     }
-                    
-                    window.gallery = galleryInstance;
-                    galleryInstance.openGallery();
-                    return;
                 }
                 
                 console.log('No gallery implementation found, creating fallback');
@@ -255,7 +321,14 @@
             floatingButton.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
             
             floatingButton.onclick = function() {
-                if (window.gallery && typeof window.gallery.openGallery === 'function') {
+                if (window.StandaloneGallery) {
+                    if (!window.standaloneGallery) {
+                        window.standaloneGallery = new window.StandaloneGallery({
+                            openButtonBox: document.body
+                        });
+                    }
+                    window.standaloneGallery.openGallery();
+                } else if (window.gallery && typeof window.gallery.openGallery === 'function') {
                     window.gallery.openGallery();
                 } else {
                     createFallbackGallery();
