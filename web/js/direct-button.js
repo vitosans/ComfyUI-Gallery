@@ -71,10 +71,6 @@
         button.style.cursor = 'pointer';
         button.style.fontSize = '14px';
         button.style.fontWeight = 'bold';
-        button.style.position = menuElement === document.body ? 'fixed' : 'relative';
-        button.style.top = menuElement === document.body ? '10px' : 'auto';
-        button.style.left = menuElement === document.body ? '10px' : 'auto';
-        button.style.zIndex = '9999';
         
         // Add click event
         button.addEventListener('click', function() {

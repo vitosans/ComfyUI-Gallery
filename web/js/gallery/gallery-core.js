@@ -441,49 +441,8 @@ Object.assign(Gallery.prototype, {
     applyStyles
 });
 
-// Basic fallback implementations for critical methods
-function showLoading(container) {
-    console.log('Fallback showLoading called');
-    if (!container) return;
-    
-    // Create a simple loading indicator
-    const loading = document.createElement('div');
-    loading.className = 'loading-fallback';
-    loading.style.position = 'absolute';
-    loading.style.top = '0';
-    loading.style.left = '0';
-    loading.style.width = '100%';
-    loading.style.height = '100%';
-    loading.style.backgroundColor = 'rgba(0,0,0,0.5)';
-    loading.style.display = 'flex';
-    loading.style.justifyContent = 'center';
-    loading.style.alignItems = 'center';
-    loading.style.zIndex = '1000';
-    
-    const spinner = document.createElement('div');
-    spinner.style.width = '50px';
-    spinner.style.height = '50px';
-    spinner.style.border = '5px solid #f3f3f3';
-    spinner.style.borderTop = '5px solid #3498db';
-    spinner.style.borderRadius = '50%';
-    spinner.style.animation = 'spin 1s linear infinite';
-    
-    const styleElem = document.createElement('style');
-    styleElem.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
-    document.head.appendChild(styleElem);
-    
-    loading.appendChild(spinner);
-    container.style.position = 'relative';
-    container.appendChild(loading);
-}
-
-function hideLoading(container) {
-    console.log('Fallback hideLoading called');
-    if (!container) return;
-    
-    const loading = container.querySelector('.loading-fallback');
-    if (loading) loading.remove();
-}
+// Note: showLoading and hideLoading are imported from image-handling.js
+// We removed the duplicate implementations to fix conflicts
 
 function showToast(message, type) {
     console.log(`Toast (${type}): ${message}`);
