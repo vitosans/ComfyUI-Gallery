@@ -1,39 +1,39 @@
 import { app } from "../../scripts/app.js";
 import { Gallery, setGalleryInstance, getGalleryInstance } from "./gallery/index.js";
 
-// Now the Gallery is defined in the gallery module
-// Keep track of gallery instance locally as well
+// Keep track of gallery instance globally
 let gallery = null;
 
-// Create a standalone gallery button if the API initialization fails
-function createStandaloneButton() {
-    console.log('Creating standalone gallery button');
+// Create a simple button that works independently
+function createDirectButton() {
+    console.log('Creating direct gallery button');
     
-    // Check if gallery is already initialized
-    if (gallery) {
-        console.log('Gallery already initialized, no need for standalone button');
-        return;
-    }
-    
-    // Look for menu
-    const menuElements = [
-        document.getElementsByClassName("flex gap-2 mx-2")[0],
+    // Find the menu - try multiple selectors
+    const possibleMenus = [
+        document.querySelector('.comfy-menu .comfy-menu-btns'),
         document.querySelector('.comfy-menu'),
-        document.querySelector('.comfy-menu .header'),
-        document.querySelector('.comfy-menu > div')
+        document.querySelector('body > div.comfy-menu > div.comfy-menu-btns'),
+        document.getElementsByClassName("flex gap-2 mx-2")[0]
     ];
     
-    const menu = menuElements.find(el => el);
+    const menu = possibleMenus.find(el => el);
     
     if (!menu) {
-        console.error('Could not find any suitable menu element');
+        console.error('Could not find any menu element');
         return;
     }
     
-    console.log('Found menu element:', menu);
+    console.log('Found menu element for button:', menu);
     
-    // Create a simple button
+    // Check if button already exists to avoid duplicates
+    if (document.getElementById('gallery-direct-button')) {
+        console.log('Gallery button already exists');
+        return;
+    }
+    
+    // Create button with inline styles (no CSS dependency)
     const btn = document.createElement('button');
+    btn.id = 'gallery-direct-button';
     btn.textContent = 'Gallery';
     btn.style.backgroundColor = '#3498db';
     btn.style.color = 'white';
@@ -42,123 +42,205 @@ function createStandaloneButton() {
     btn.style.margin = '5px';
     btn.style.borderRadius = '4px';
     btn.style.cursor = 'pointer';
+    btn.style.fontSize = '14px';
     
-    btn.onclick = () => {
-        // Initialize gallery on first click
+    btn.onclick = function() {
+        console.log('Gallery direct button clicked');
+
+        // Create gallery if it doesn't exist
         if (!gallery) {
+            try {
+                gallery = new Gallery({ openButtonBox: menu, folders: {} });
+                setGalleryInstance(gallery);
+                console.log('Created gallery on button click');
+            } catch (err) {
+                console.error('Error creating gallery:', err);
+                alert('Could not initialize gallery. See console for details.');
+                return;
+            }
+        }
+        
+        // Open gallery
+        try {
+            gallery.openGallery();
+        } catch (err) {
+            console.error('Error opening gallery:', err);
+            alert('Could not open gallery. See console for details.');
+        }
+    };
+    
+    // Add button to menu
+    menu.appendChild(btn);
+    console.log('Direct gallery button added successfully');
+    
+    return btn;
+}
+
+// Create gallery popup directly without dependencies
+function createSimpleGalleryPopup() {
+    if (document.getElementById('simple-gallery-popup')) {
+        return document.getElementById('simple-gallery-popup');
+    }
+    
+    // Create minimal gallery popup
+    const popup = document.createElement('div');
+    popup.id = 'simple-gallery-popup';
+    popup.style.position = 'fixed';
+    popup.style.top = '0';
+    popup.style.left = '0';
+    popup.style.width = '100%';
+    popup.style.height = '100%';
+    popup.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    popup.style.zIndex = '1000';
+    popup.style.display = 'none';
+    popup.style.justifyContent = 'center';
+    popup.style.alignItems = 'center';
+    popup.style.flexDirection = 'column';
+    
+    // Add content container
+    const content = document.createElement('div');
+    content.style.backgroundColor = '#333';
+    content.style.color = '#fff';
+    content.style.padding = '20px';
+    content.style.borderRadius = '8px';
+    content.style.width = '80%';
+    content.style.height = '80%';
+    content.style.display = 'flex';
+    content.style.flexDirection = 'column';
+    
+    // Add close button
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.marginBottom = '15px';
+    
+    const title = document.createElement('h2');
+    title.textContent = 'ComfyUI Gallery';
+    title.style.margin = '0';
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close';
+    closeBtn.style.backgroundColor = '#e74c3c';
+    closeBtn.style.color = 'white';
+    closeBtn.style.border = 'none';
+    closeBtn.style.padding = '5px 10px';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.style.borderRadius = '4px';
+    
+    closeBtn.onclick = function() {
+        popup.style.display = 'none';
+    };
+    
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    content.appendChild(header);
+    
+    // Add message
+    const message = document.createElement('div');
+    message.style.flex = '1';
+    message.style.display = 'flex';
+    message.style.justifyContent = 'center';
+    message.style.alignItems = 'center';
+    message.style.textAlign = 'center';
+    message.innerHTML = 'Loading gallery...<br><br>If the gallery doesn\'t load, please check the browser console for errors.';
+    
+    content.appendChild(message);
+    popup.appendChild(content);
+    document.body.appendChild(popup);
+    
+    return popup;
+}
+
+// Function to open simple gallery popup
+function openSimpleGallery() {
+    const popup = createSimpleGalleryPopup();
+    popup.style.display = 'flex';
+    
+    // Try to load the real gallery
+    try {
+        // Find the menu
+        const menu = document.querySelector('.comfy-menu') || document.getElementsByClassName("flex gap-2 mx-2")[0];
+        
+        if (!gallery && menu) {
             gallery = new Gallery({ openButtonBox: menu, folders: {} });
             setGalleryInstance(gallery);
         }
         
-        // Open gallery
-        gallery.openGallery();
-    };
-    
-    menu.appendChild(btn);
-    console.log('Standalone button added to menu');
+        if (gallery) {
+            gallery.openGallery();
+            popup.style.display = 'none';
+        }
+    } catch (err) {
+        console.error('Error opening actual gallery:', err);
+        // Keep simple popup open as fallback
+    }
 }
 
+// Ensure button is added when the DOM is ready
+function ensureButtonExists() {
+    if (!document.getElementById('gallery-direct-button')) {
+        createDirectButton();
+    }
+}
+
+// Main initialization
 app.registerExtension({
     name: "Gallery",
-    init() {
-        console.log('Initializing Gallery extension');
+    async setup() {
+        console.log('Gallery extension setup start');
         
+        // Create button immediately on setup
+        setTimeout(createDirectButton, 0);
+        
+        // Add multiple attempts to ensure button appears
+        setTimeout(ensureButtonExists, 500);
+        setTimeout(ensureButtonExists, 1000);
+        setTimeout(ensureButtonExists, 2000);
+        
+        console.log('Gallery extension setup complete');
+    },
+    
+    async init() {
+        console.log('Gallery extension init start');
+        
+        // Create button again in case setup didn't work
+        createDirectButton();
+        
+        // Try to load gallery data in background
         try {
-            // Try to get menu first in case API fails
-            const menuElements = [
-                document.getElementsByClassName("flex gap-2 mx-2")[0],
-                document.querySelector('.comfy-menu'),
-                document.querySelector('.comfy-menu .header'),
-                document.querySelector('.comfy-menu > div')
-            ];
-            
-            const menu = menuElements.find(el => el);
-            
-            if (!menu) {
-                console.warn('Could not find menu element on init');
-            } else {
-                console.log('Found menu element:', menu);
-            }
-            
-            // Create a gallery instance with empty folders first
-            // so that the button appears even if API fails
-            if (menu) {
-                gallery = new Gallery({ openButtonBox: menu, folders: {} });
-                setGalleryInstance(gallery);
-                console.log('Gallery instance created with empty folders');
-            }
-            
-            // Now try to fetch actual folders
             console.log('Fetching gallery images');
-            
-            // Try multiple API endpoints
-            const tryFetchEndpoints = (endpoints, index = 0) => {
-                if (index >= endpoints.length) {
-                    console.error('All API endpoints failed');
-                    return;
-                }
-                
-                const endpoint = endpoints[index];
-                console.log(`Trying API endpoint: ${endpoint}`);
-                
-                app.api.fetchApi(endpoint)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`API request failed with status ${response.status}`);
-                        }
-                        return response.text();
-                    })
-                    .then(text => {
-                        try {
-                            return JSON.parse(text);
-                        } catch (e) {
-                            console.error(`Error parsing JSON from ${endpoint}:`, e);
-                            return { folders: {} };
-                        }
-                    })
-                    .then(data => {
-                        console.log(`Got data from ${endpoint}:`, data);
+            app.api.fetchApi("/Gallery/images")
+                .then(response => response.text())
+                .then(text => {
+                    try {
+                        const data = JSON.parse(text);
+                        console.log('Got gallery data:', data);
                         
-                        // Update the existing gallery instance if it exists
-                        if (gallery) {
-                            gallery.updateImages(data.folders || {});
-                            console.log('Updated existing gallery instance with folders');
-                        } else {
-                            // Create a new gallery instance if one doesn't exist yet
-                            const menu = menuElements.find(el => el);
-                            
-                            if (menu) {
+                        // Find the menu
+                        const menu = document.querySelector('.comfy-menu') || 
+                                    document.getElementsByClassName("flex gap-2 mx-2")[0];
+                        
+                        if (menu) {
+                            // Create or update gallery instance
+                            if (gallery) {
+                                gallery.updateImages(data.folders || {});
+                            } else {
                                 gallery = new Gallery({ openButtonBox: menu, folders: data.folders || {} });
                                 setGalleryInstance(gallery);
-                                console.log('Created new gallery instance with folders');
-                            } else {
-                                console.error('No menu element found for gallery button');
                             }
                         }
-                    })
-                    .catch(error => {
-                        console.error(`Error with endpoint ${endpoint}:`, error);
-                        // Try next endpoint
-                        tryFetchEndpoints(endpoints, index + 1);
-                    });
-            };
-            
-            // Try different endpoints
-            tryFetchEndpoints(["/Gallery/images", "./Gallery/images", "../Gallery/images"]);
-            
+                    } catch (e) {
+                        console.error('Error parsing gallery data:', e);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching gallery data:', error);
+                });
         } catch (error) {
-            console.error('Error in Gallery init:', error);
-            // Try to create standalone button as fallback
-            setTimeout(createStandaloneButton, 2000);
+            console.error('Error in gallery data loading:', error);
         }
         
-        // Add a fallback to create button if none exists after 5 seconds
-        setTimeout(() => {
-            if (!gallery) {
-                console.warn('No gallery instance after 5s, creating fallback button');
-                createStandaloneButton();
-            }
-        }, 5000);
+        console.log('Gallery extension init complete');
     },
     
     async nodeCreated(node) {
@@ -166,34 +248,12 @@ app.registerExtension({
             if (node.comfyClass === "GalleryNode") {
                 console.log('Gallery node created');
                 
-                const onRemoved = node.onRemoved;
-                node.onRemoved = () => {
-                    try {
-                        if (onRemoved) { onRemoved.apply(node); }
-                        // Use either the local instance or get it from the module
-                        const galleryInstance = gallery || getGalleryInstance();
-                        if (galleryInstance) {
-                            galleryInstance.closeGallery();
-                        }
-                    } catch (error) {
-                        console.error('Error in node removal handler:', error);
-                    }
-                };
-                
                 // Add button to node
                 node.addWidget("button", "Open Gallery", null, () => {
-                    try {
-                        console.log('Gallery node button clicked');
-                        // Use either the local instance or get it from the module
-                        const galleryInstance = gallery || getGalleryInstance();
-                        if (galleryInstance) {
-                            galleryInstance.openGallery();
-                        } else {
-                            console.error('No gallery instance available');
-                            createStandaloneButton();
-                        }
-                    } catch (error) {
-                        console.error('Error in gallery node button handler:', error);
+                    if (gallery) {
+                        gallery.openGallery();
+                    } else {
+                        openSimpleGallery();
                     }
                 });
                 
@@ -202,25 +262,17 @@ app.registerExtension({
         } catch (error) {
             console.error('Error in nodeCreated handler:', error);
         }
-    },
-    
-    // Add this to ensure the extension is loaded on all pages
-    setup() {
-        console.log('Gallery extension setup');
-    },
-    
-    async beforeRegisterNodeDef(nodeType, nodeData, app) {
-        if (nodeData.name === "GalleryNode") {
-            console.log('Gallery node definition registered');
-        }
     }
 });
 
+// Direct initialization - runs as soon as this script loads
+console.log('Gallery UI script loaded - direct initialization');
+setTimeout(createDirectButton, 0);
+
 // Event listeners
 app.api.addEventListener("Gallery.file_change", (event) => {
-    console.log("file_change:", event);
+    console.log("file_change event received");
     try {
-        // Use either the local instance or get it from the module
         const galleryInstance = gallery || getGalleryInstance();
         if (galleryInstance) {
             app.api.fetchApi("/Gallery/images")
@@ -237,9 +289,8 @@ app.api.addEventListener("Gallery.file_change", (event) => {
 });
 
 app.api.addEventListener("Gallery.update", (event) => {
-    console.log("update:", event);
+    console.log("update event received");
     try {
-        // Use either the local instance or get it from the module
         const galleryInstance = gallery || getGalleryInstance();
         if (galleryInstance) {
             galleryInstance.updateImages(event.detail.folders);
@@ -250,9 +301,8 @@ app.api.addEventListener("Gallery.update", (event) => {
 });
 
 app.api.addEventListener("Gallery.clear", (event) => {
-    console.log("clear:", event);
+    console.log("clear event received");
     try {
-        // Use either the local instance or get it from the module
         const galleryInstance = gallery || getGalleryInstance();
         if (galleryInstance) {
             galleryInstance.clearGallery();
