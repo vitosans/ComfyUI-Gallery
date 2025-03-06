@@ -94,54 +94,64 @@ class GalleryNode:
 
     @classmethod
     def JAVASCRIPT_IMPORTS(cls):
+        """This method defines JS files to import when the node is added to the graph"""
+        print("Gallery Node: Loading JAVASCRIPT_IMPORTS")
         return [
-            {"path": "./web/js/gallery_ui.js"},
-            {"path": "./web/js/direct-button.js"}
+            {"path": "./web/js/gallery-button.js"},  # The standalone button script
+            {"path": "./web/js/gallery_ui.js"}       # The main gallery UI 
         ]
         
     @classmethod
     def HEAD_IMPORTS(cls):
-        script_inline = """
-            console.log("Gallery Node script loaded in HEAD");
-            
-            // Create a simple Gallery button that will always appear
-            document.addEventListener('DOMContentLoaded', function() {
-                console.log("DOMContentLoaded - Adding direct gallery button");
-                setTimeout(function() {
-                    try {
-                        const btn = document.createElement('button');
-                        btn.id = 'gallery-node-button';
-                        btn.textContent = 'Gallery';
-                        btn.style.backgroundColor = '#3498db';
-                        btn.style.color = 'white';
-                        btn.style.border = 'none';
-                        btn.style.padding = '5px 10px';
-                        btn.style.margin = '5px';
-                        btn.style.borderRadius = '4px';
-                        btn.style.cursor = 'pointer';
-                        btn.style.position = 'fixed';
-                        btn.style.top = '10px';
-                        btn.style.left = '10px';
-                        btn.style.zIndex = '9999';
-                        
-                        btn.onclick = function() {
-                            console.log("Gallery button clicked");
-                            alert("Gallery button clicked!");
-                        };
-                        
-                        document.body.appendChild(btn);
-                        console.log("Direct gallery button added to page");
-                    } catch (e) {
-                        console.error("Error creating direct gallery button:", e);
-                    }
-                }, 1000);
-            });
-        """
-        
+        """This method defines HTML to add to the document HEAD when the node is added to the graph"""
+        print("Gallery Node: Loading HEAD_IMPORTS")
         return [
-            {"script": {"content": script_inline}}
+            {"script": {"content": """
+                console.log('Gallery Node: Adding inline button');
+                // Wait for page to load
+                document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(function() {
+                        if (!document.getElementById('gallery-node-button')) {
+                            const button = document.createElement('button');
+                            button.id = 'gallery-node-button';
+                            button.textContent = 'Gallery';
+                            button.style.backgroundColor = '#f39c12';
+                            button.style.color = 'white';
+                            button.style.border = 'none';
+                            button.style.padding = '8px 15px';
+                            button.style.borderRadius = '4px';
+                            button.style.cursor = 'pointer';
+                            button.style.position = 'fixed';
+                            button.style.left = '20px';
+                            button.style.bottom = '20px';
+                            button.style.zIndex = '10000';
+                            button.onclick = function() {
+                                alert('Gallery button clicked from node!');
+                            };
+                            document.body.appendChild(button);
+                            console.log('Gallery Node: Button added to page');
+                        }
+                    }, 1000);
+                });
+            """}}
         ]
+        
+    @classmethod
+    def DOCUMENTATION(cls):
+        """Add documentation for the gallery node"""
+        return {
+            "title": "Gallery Node",
+            "description": "A node that provides a gallery for viewing generated images with metadata",
+            "buttons": [
+                {
+                    "name": "Open Gallery Button",
+                    "icon": "Gallery",
+                    "description": "Opens the gallery to view generated images with metadata"
+                }
+            ],
+            "return": "Nothing"
+        }
 
-
+# Export the node class
 NODE_CLASS_MAPPINGS = {"GalleryNode": GalleryNode}
 NODE_DISPLAY_NAME_MAPPINGS = {"GalleryNode": "Gallery Button"}
