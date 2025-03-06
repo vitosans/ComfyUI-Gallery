@@ -94,7 +94,53 @@ class GalleryNode:
 
     @classmethod
     def JAVASCRIPT_IMPORTS(cls):
-        return [{"path": "./web/js/gallery_ui.js"}]
+        return [
+            {"path": "./web/js/gallery_ui.js"},
+            {"path": "./web/js/direct-button.js"}
+        ]
+        
+    @classmethod
+    def HEAD_IMPORTS(cls):
+        script_inline = """
+            console.log("Gallery Node script loaded in HEAD");
+            
+            // Create a simple Gallery button that will always appear
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log("DOMContentLoaded - Adding direct gallery button");
+                setTimeout(function() {
+                    try {
+                        const btn = document.createElement('button');
+                        btn.id = 'gallery-node-button';
+                        btn.textContent = 'Gallery';
+                        btn.style.backgroundColor = '#3498db';
+                        btn.style.color = 'white';
+                        btn.style.border = 'none';
+                        btn.style.padding = '5px 10px';
+                        btn.style.margin = '5px';
+                        btn.style.borderRadius = '4px';
+                        btn.style.cursor = 'pointer';
+                        btn.style.position = 'fixed';
+                        btn.style.top = '10px';
+                        btn.style.left = '10px';
+                        btn.style.zIndex = '9999';
+                        
+                        btn.onclick = function() {
+                            console.log("Gallery button clicked");
+                            alert("Gallery button clicked!");
+                        };
+                        
+                        document.body.appendChild(btn);
+                        console.log("Direct gallery button added to page");
+                    } catch (e) {
+                        console.error("Error creating direct gallery button:", e);
+                    }
+                }, 1000);
+            });
+        """
+        
+        return [
+            {"script": {"content": script_inline}}
+        ]
 
 
 NODE_CLASS_MAPPINGS = {"GalleryNode": GalleryNode}
