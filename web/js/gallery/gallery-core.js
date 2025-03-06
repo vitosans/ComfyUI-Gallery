@@ -96,17 +96,74 @@ class Gallery {
     createButton() {
         if (!this.galleryButton) {
             this.galleryButton = document.createElement('button');
-            this.galleryButton.textContent = 'Open Gallery';
             this.galleryButton.classList.add('gallery-button');
-            this.galleryButton.innerHTML = '<i class="material-icons" style="margin-right: 5px;">photo_library</i>Gallery';
-            this.galleryButton.addEventListener('click', () => this.openGallery());
-            this.openButtonBox.appendChild(this.galleryButton);
+            
+            // Set basic styling directly on the button
+            this.galleryButton.style.backgroundColor = '#3498db';
+            this.galleryButton.style.color = 'white';
+            this.galleryButton.style.border = 'none';
+            this.galleryButton.style.padding = '5px 10px';
+            this.galleryButton.style.borderRadius = '4px';
+            this.galleryButton.style.cursor = 'pointer';
+            this.galleryButton.style.display = 'flex';
+            this.galleryButton.style.alignItems = 'center';
+            
+            // Use text node instead of innerHTML for better compatibility
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'material-icons';
+            iconSpan.textContent = 'photo_library';
+            iconSpan.style.marginRight = '5px';
+            
+            const textNode = document.createTextNode('Gallery');
+            
+            this.galleryButton.appendChild(iconSpan);
+            this.galleryButton.appendChild(textNode);
+            
+            // Log click and connection issues
+            this.galleryButton.addEventListener('click', () => {
+                console.log('Gallery button clicked');
+                try {
+                    this.openGallery();
+                } catch (error) {
+                    console.error('Error opening gallery:', error);
+                    alert('Error opening gallery. Check console for details.');
+                }
+            });
+            
+            // Add to DOM
+            if (this.openButtonBox) {
+                console.log('Adding gallery button to button box');
+                this.openButtonBox.appendChild(this.galleryButton);
+            } else {
+                console.error('Button box not found');
+                // Try to append to body as fallback
+                document.body.appendChild(this.galleryButton);
+            }
         }
     }
 
     // Core methods
     openGallery() {
+        console.log('Opening gallery');
+        
+        if (!this.galleryPopup) {
+            console.error('Gallery popup not created yet');
+            
+            // Try to recreate the UI elements
+            console.log('Attempting to recreate gallery UI');
+            createGalleryUI(this);
+            
+            if (!this.galleryPopup) {
+                console.error('Failed to create gallery popup');
+                alert('Gallery initialization failed. Check console for details.');
+                return;
+            }
+        }
+        
+        console.log('Setting gallery popup to display flex');
         this.galleryPopup.style.display = 'flex';
+        
+        console.log('Refreshing gallery content');
         this.refreshGallery();
     }
 
@@ -117,29 +174,76 @@ class Gallery {
     }
     
     refreshGallery() {
+        console.log('Refreshing gallery');
+        
+        // Check if popup exists
+        if (!this.galleryPopup) {
+            console.error('Gallery popup not initialized');
+            return;
+        }
+        
         // Show loading state
         const imageDisplay = this.galleryPopup?.querySelector('.image-display');
         if (imageDisplay) {
-            this.showLoading(imageDisplay);
+            try {
+                console.log('Showing loading indicator');
+                this.showLoading(imageDisplay);
+            } catch (error) {
+                console.error('Error showing loading indicator:', error);
+            }
+        } else {
+            console.warn('Image display element not found');
         }
         
-        // Fetch latest images from server
-        fetch('/Gallery/images')
-            .then(response => response.json())
-            .then(data => {
-                this.updateImages(data.folders || {});
-                if (imageDisplay) {
-                    this.hideLoading(imageDisplay);
-                }
-                this.showToast('Gallery refreshed', 'success');
-            })
-            .catch(error => {
-                console.error('Error refreshing gallery:', error);
-                if (imageDisplay) {
-                    this.hideLoading(imageDisplay);
-                }
-                this.showToast('Failed to refresh gallery', 'error');
-            });
+        // Log all available endpoints
+        console.log('Available fetch paths:');
+        ['./Gallery/images', '/Gallery/images', '../Gallery/images', 'Gallery/images'].forEach(path => {
+            console.log(`- ${path}`);
+        });
+        
+        // Try multiple API paths
+        const tryFetch = (paths, index = 0) => {
+            if (index >= paths.length) {
+                console.error('All API paths failed');
+                alert('Failed to load gallery images. Check console for details.');
+                if (imageDisplay) this.hideLoading(imageDisplay);
+                return;
+            }
+            
+            const path = paths[index];
+            console.log(`Trying to fetch from: ${path}`);
+            
+            fetch(path)
+                .then(response => {
+                    console.log(`Response from ${path}:`, response);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data:', data);
+                    this.updateImages(data.folders || {});
+                    if (imageDisplay) {
+                        this.hideLoading(imageDisplay);
+                    }
+                    console.log('Gallery refreshed successfully');
+                    // Use try-catch for showToast in case it's not implemented yet
+                    try {
+                        this.showToast('Gallery refreshed', 'success');
+                    } catch (e) {
+                        console.log('Toast notification not available');
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error fetching from ${path}:`, error);
+                    // Try next path
+                    tryFetch(paths, index + 1);
+                });
+        };
+        
+        // Try different possible API paths
+        tryFetch(['./Gallery/images', '/Gallery/images', '../Gallery/images', 'Gallery/images']);
     }
     
     showPreviousImage() {
@@ -337,13 +441,163 @@ Object.assign(Gallery.prototype, {
     applyStyles
 });
 
+// Basic fallback implementations for critical methods
+function showLoading(container) {
+    console.log('Fallback showLoading called');
+    if (!container) return;
+    
+    // Create a simple loading indicator
+    const loading = document.createElement('div');
+    loading.className = 'loading-fallback';
+    loading.style.position = 'absolute';
+    loading.style.top = '0';
+    loading.style.left = '0';
+    loading.style.width = '100%';
+    loading.style.height = '100%';
+    loading.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    loading.style.display = 'flex';
+    loading.style.justifyContent = 'center';
+    loading.style.alignItems = 'center';
+    loading.style.zIndex = '1000';
+    
+    const spinner = document.createElement('div');
+    spinner.style.width = '50px';
+    spinner.style.height = '50px';
+    spinner.style.border = '5px solid #f3f3f3';
+    spinner.style.borderTop = '5px solid #3498db';
+    spinner.style.borderRadius = '50%';
+    spinner.style.animation = 'spin 1s linear infinite';
+    
+    const styleElem = document.createElement('style');
+    styleElem.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+    document.head.appendChild(styleElem);
+    
+    loading.appendChild(spinner);
+    container.style.position = 'relative';
+    container.appendChild(loading);
+}
+
+function hideLoading(container) {
+    console.log('Fallback hideLoading called');
+    if (!container) return;
+    
+    const loading = container.querySelector('.loading-fallback');
+    if (loading) loading.remove();
+}
+
+function showToast(message, type) {
+    console.log(`Toast (${type}): ${message}`);
+    
+    // Create a basic toast notification
+    const toast = document.createElement('div');
+    toast.style.position = 'fixed';
+    toast.style.bottom = '20px';
+    toast.style.right = '20px';
+    toast.style.padding = '10px 20px';
+    toast.style.borderRadius = '4px';
+    toast.style.color = 'white';
+    toast.style.zIndex = '9999';
+    
+    // Set background color based on type
+    switch(type) {
+        case 'success':
+            toast.style.backgroundColor = '#27ae60';
+            break;
+        case 'error':
+            toast.style.backgroundColor = '#c0392b';
+            break;
+        default:
+            toast.style.backgroundColor = '#2980b9';
+    }
+    
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
 // Add applyStyles method back into the Gallery class
 function applyStyles() {
     // Load external CSS instead of inline styles
     const linkElement = document.createElement('link');
     linkElement.rel = 'stylesheet';
-    linkElement.href = '/extensions/ComfyUI-Gallery/web/css/gallery-styles.css';
-    document.head.appendChild(linkElement);
+    
+    // Try different possible paths for the CSS file
+    const possiblePaths = [
+        './web/css/gallery-styles.css',                     // Direct path
+        '../web/css/gallery-styles.css',                    // Relative from js folder
+        '/extensions/ComfyUI-Gallery/web/css/gallery-styles.css', // Extensions path
+        './ComfyUI-Gallery/web/css/gallery-styles.css',    // Alternative path
+        '/ComfyUI-Gallery/web/css/gallery-styles.css'      // Root-relative path
+    ];
+    
+    // Create a dynamic script to detect which path works
+    let cssPathFound = false;
+    possiblePaths.forEach(path => {
+        // Test if file exists by creating a test element
+        const testLink = document.createElement('link');
+        testLink.rel = 'stylesheet';
+        testLink.href = path;
+        testLink.onload = () => {
+            if (!cssPathFound) {
+                console.log(`Gallery CSS loaded successfully from: ${path}`);
+                linkElement.href = path;
+                document.head.appendChild(linkElement);
+                cssPathFound = true;
+                // Remove test link after we've found the right path
+                document.head.removeChild(testLink);
+            }
+        };
+        document.head.appendChild(testLink);
+    });
+    
+    // Fallback inline styles if no CSS paths work
+    setTimeout(() => {
+        if (!cssPathFound) {
+            console.warn("Could not load external CSS, using inline styles");
+            
+            // Create minimal inline styles to make the gallery work
+            const style = document.createElement('style');
+            style.textContent = `
+                .gallery-button { 
+                    background-color: #3498db; 
+                    color: white; 
+                    border: none; 
+                    padding: 5px 10px; 
+                    cursor: pointer; 
+                    border-radius: 4px;
+                }
+                .gallery-button:hover { background-color: #2980b9; }
+                
+                .gallery-popup {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0, 0, 0, 0.8);
+                    z-index: 1000;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                }
+                
+                .popup-content {
+                    background-color: #333;
+                    color: white;
+                    width: 80%;
+                    height: 80%;
+                    border-radius: 8px;
+                    overflow: auto;
+                    padding: 20px;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }, 1000);
     
     // Also load Material Icons for our enhanced UI
     const iconLink = document.createElement('link');
