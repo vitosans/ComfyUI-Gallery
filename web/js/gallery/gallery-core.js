@@ -1,6 +1,16 @@
-import { createGalleryUI, createFullscreenContainer, createInfoWindow, createRawMetadataWindow } from "./ui-components.js";
-import { populateFolderNavigation, loadFolderImages, setupLazyLoading, sortImages, sortImagesArray } from "./image-handling.js";
-import { showFullscreenImage, showInfoWindow, showRawMetadataWindow, populateInfoWindowContent, closeInfoWindow, closeRawMetadataWindow, closeFullscreenView } from "./metadata-display.js";
+import { createGalleryUI, createFullscreenContainer, createInfoWindow, createRawMetadataWindow, createFilterPanel, updateFilterPanelOptions, applySelectedFilters, resetFilters, showCollectionsPanel, showFavorites, viewCollection } from "./ui-components.js";
+import {
+    populateFolderNavigation, loadFolderImages, setupLazyLoading, sortImages, sortImagesArray,
+    applyFilters, toggleFavorite, loadFavorites, showLoading, hideLoading, calculateImagesPerPage,
+    renderImageBatch, createImageCard, setupInfiniteScroll, getLastDateFromContainer
+} from "./image-handling.js";
+import {
+    showFullscreenImage, showInfoWindow, showRawMetadataWindow, populateInfoWindowContent,
+    closeInfoWindow, closeRawMetadataWindow, closeFullscreenView, adjustZoom, resetZoom,
+    rotateImage, setupImageDragging, setupMouseWheelZoom, formatPromptText, sendToComfyUI,
+    importWorkflow, showToast, showCollections, loadCollections, saveCollections,
+    createCollection, addToCollection
+} from "./metadata-display.js";
 
 let gallery;
 
@@ -18,6 +28,18 @@ class Gallery {
         this.fullscreenImage = null;
         this.infoWindow = null;
         this.rawMetadataWindow = null;
+        
+        // New properties for enhanced features
+        this.favorites = [];
+        this.collections = [];
+        this.activeFilters = {};
+        this.filteredImages = [];
+        this.currentPage = 0;
+        this.imagesPerPage = 50;
+        this.filterPanel = null;
+        this.darkMode = true; // Default to dark mode
+        this.imageObserver = null;
+        this.scrollListener = null;
 
         this.init();
     }
@@ -27,16 +49,45 @@ class Gallery {
         createGalleryUI(this);
         this.applyStyles();
         this.setupKeyboardEvents();
+        
+        // Load saved data
+        this.loadFavorites();
+        this.loadThemePreference();
+        
+        // Create additional panels
+        createFilterPanel(this);
     }
     
     setupKeyboardEvents() {
         document.addEventListener('keydown', (e) => {
+            // Handle different keyboard events
             if (e.key === 'Escape') {
                 // Close any open fullscreen container or popup
                 if (this.fullscreenContainer && this.fullscreenContainer.style.display === 'flex') {
                     this.closeFullscreenView();
                 } else if (this.galleryPopup && this.galleryPopup.style.display === 'flex') {
                     this.closeGallery();
+                }
+            } else if (this.fullscreenContainer && this.fullscreenContainer.style.display === 'flex') {
+                // Only handle these keys when in fullscreen view
+                if (e.key === 'ArrowLeft') {
+                    this.showPreviousImage();
+                    e.preventDefault();
+                } else if (e.key === 'ArrowRight') {
+                    this.showNextImage();
+                    e.preventDefault();
+                } else if (e.key === '+' || e.key === '=') {
+                    this.adjustZoom(0.1);
+                    e.preventDefault();
+                } else if (e.key === '-') {
+                    this.adjustZoom(-0.1);
+                    e.preventDefault();
+                } else if (e.key === '0') {
+                    this.resetZoom();
+                    e.preventDefault();
+                } else if (e.key === 'r' || e.key === 'R') {
+                    this.rotateImage(90);
+                    e.preventDefault();
                 }
             }
         });
@@ -47,6 +98,7 @@ class Gallery {
             this.galleryButton = document.createElement('button');
             this.galleryButton.textContent = 'Open Gallery';
             this.galleryButton.classList.add('gallery-button');
+            this.galleryButton.innerHTML = '<i class="material-icons" style="margin-right: 5px;">photo_library</i>Gallery';
             this.galleryButton.addEventListener('click', () => this.openGallery());
             this.openButtonBox.appendChild(this.galleryButton);
         }
@@ -55,12 +107,86 @@ class Gallery {
     // Core methods
     openGallery() {
         this.galleryPopup.style.display = 'flex';
-        populateFolderNavigation(this);
+        this.refreshGallery();
     }
 
     closeGallery() {
         if (this.galleryPopup) {
             this.galleryPopup.style.display = 'none';
+        }
+    }
+    
+    refreshGallery() {
+        // Show loading state
+        const imageDisplay = this.galleryPopup?.querySelector('.image-display');
+        if (imageDisplay) {
+            this.showLoading(imageDisplay);
+        }
+        
+        // Fetch latest images from server
+        fetch('/Gallery/images')
+            .then(response => response.json())
+            .then(data => {
+                this.updateImages(data.folders || {});
+                if (imageDisplay) {
+                    this.hideLoading(imageDisplay);
+                }
+                this.showToast('Gallery refreshed', 'success');
+            })
+            .catch(error => {
+                console.error('Error refreshing gallery:', error);
+                if (imageDisplay) {
+                    this.hideLoading(imageDisplay);
+                }
+                this.showToast('Failed to refresh gallery', 'error');
+            });
+    }
+    
+    showPreviousImage() {
+        if (!this.currentImageUrl || !this.filteredImages) return;
+        
+        // Find current image index
+        const currentIndex = this.filteredImages.findIndex(img => img.url === this.currentImageUrl);
+        if (currentIndex === -1) return;
+        
+        // Get previous image
+        const prevIndex = (currentIndex - 1 + this.filteredImages.length) % this.filteredImages.length;
+        const prevImage = this.filteredImages[prevIndex];
+        
+        // Show previous image
+        this.showFullscreenImage(prevImage.url, prevImage);
+    }
+    
+    showNextImage() {
+        if (!this.currentImageUrl || !this.filteredImages) return;
+        
+        // Find current image index
+        const currentIndex = this.filteredImages.findIndex(img => img.url === this.currentImageUrl);
+        if (currentIndex === -1) return;
+        
+        // Get next image
+        const nextIndex = (currentIndex + 1) % this.filteredImages.length;
+        const nextImage = this.filteredImages[nextIndex];
+        
+        // Show next image
+        this.showFullscreenImage(nextImage.url, nextImage);
+    }
+    
+    toggleTheme() {
+        this.darkMode = !this.darkMode;
+        document.body.classList.toggle('light-theme', !this.darkMode);
+        
+        // Save preference
+        localStorage.setItem('comfyui-gallery-theme', this.darkMode ? 'dark' : 'light');
+        
+        this.showToast(`Switched to ${this.darkMode ? 'dark' : 'light'} theme`, 'info');
+    }
+    
+    loadThemePreference() {
+        const savedTheme = localStorage.getItem('comfyui-gallery-theme');
+        if (savedTheme) {
+            this.darkMode = savedTheme === 'dark';
+            document.body.classList.toggle('light-theme', !this.darkMode);
         }
     }
 
@@ -95,6 +221,62 @@ class Gallery {
             imageDisplay.scrollTop = scrollTop;
         }
     }
+    
+    showFilterPanel() {
+        if (this.filterPanel) {
+            this.filterPanel.style.display = 'block';
+            
+            // Extract metadata fields for filtering from current images
+            this.updateFilterOptions();
+        }
+    }
+    
+    updateFilterOptions() {
+        // Build a list of available filter options from the current folder
+        const currentFolderImages = this.folders[this.currentFolder] || [];
+        if (currentFolderImages.length === 0) return;
+        
+        // Extract common fields from metadata
+        const metadataFields = new Map();
+        
+        currentFolderImages.forEach(image => {
+            if (!image.metadata) return;
+            
+            // Add basic fields
+            if (image.metadata.model) {
+                if (!metadataFields.has('model')) metadataFields.set('model', new Set());
+                metadataFields.get('model').add(image.metadata.model);
+            }
+            
+            if (image.metadata.sampler) {
+                if (!metadataFields.has('sampler')) metadataFields.set('sampler', new Set());
+                metadataFields.get('sampler').add(image.metadata.sampler);
+            }
+            
+            // Try to handle nested fields from the prompt structure
+            if (image.metadata.prompt) {
+                // Look for common node types
+                for (const key in image.metadata.prompt) {
+                    const node = image.metadata.prompt[key];
+                    
+                    // Extract sampler from KSampler
+                    if (node.class_type === 'KSampler' && node.inputs?.sampler_name) {
+                        if (!metadataFields.has('sampler')) metadataFields.set('sampler', new Set());
+                        metadataFields.get('sampler').add(node.inputs.sampler_name);
+                    }
+                    
+                    // Extract model from CheckpointLoaderSimple
+                    if (node.class_type === 'CheckpointLoaderSimple' && node.inputs?.ckpt_name) {
+                        if (!metadataFields.has('model')) metadataFields.set('model', new Set());
+                        metadataFields.get('model').add(node.inputs.ckpt_name);
+                    }
+                }
+            }
+        });
+        
+        // Update filter panel options
+        this.updateFilterPanelOptions(metadataFields);
+    }
 }
 
 // Make methods available on the Gallery prototype
@@ -103,15 +285,32 @@ Object.assign(Gallery.prototype, {
     createFullscreenContainer,
     createInfoWindow,
     createRawMetadataWindow,
+    createFilterPanel,
+    updateFilterPanelOptions,
+    applySelectedFilters,
+    resetFilters,
+    showCollectionsPanel,
+    showFavorites,
+    viewCollection,
     
-    // Image handling
+    // Image handling methods
     populateFolderNavigation,
     loadFolderImages,
     setupLazyLoading,
     sortImages,
     sortImagesArray,
+    applyFilters,
+    toggleFavorite,
+    loadFavorites,
+    showLoading,
+    hideLoading,
+    calculateImagesPerPage,
+    renderImageBatch,
+    createImageCard,
+    setupInfiniteScroll,
+    getLastDateFromContainer,
     
-    // Metadata display
+    // Metadata display and actions
     showFullscreenImage,
     showInfoWindow,
     showRawMetadataWindow,
@@ -119,6 +318,20 @@ Object.assign(Gallery.prototype, {
     closeInfoWindow,
     closeRawMetadataWindow,
     closeFullscreenView,
+    adjustZoom,
+    resetZoom,
+    rotateImage,
+    setupImageDragging,
+    setupMouseWheelZoom,
+    formatPromptText,
+    sendToComfyUI,
+    importWorkflow,
+    showToast,
+    showCollections,
+    loadCollections,
+    saveCollections,
+    createCollection,
+    addToCollection,
     
     // Styles
     applyStyles
@@ -126,496 +339,17 @@ Object.assign(Gallery.prototype, {
 
 // Add applyStyles method back into the Gallery class
 function applyStyles() {
-    const styleContent = `
-        /* Basic Reset */
-        * { box-sizing: border-box; }
-
-        /* Gallery Popup */
-        .gallery-popup {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            font-family: sans-serif;
-        }
-
-        .popup-content {
-            background-color: #444;
-            color: #ddd;
-            border: 1px solid #666;
-            width: 80vw;
-            height: 80vh;
-            max-height: 80vh;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
-            border-radius: 8px;
-            overflow: auto;
-            padding: 20px;
-        }
-
-        /* Header */
-        .popup-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #666;
-        }
-
-        .close-button {
-            background-color: #c0392b;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background-color 0.3s ease;
-        }
-        .close-button:hover { background-color: #992d22; }
-
-        /* Sort controls */
-        .sort-buttons {
-            display: flex;
-            gap: 8px;
-            margin-left: auto;
-        }
-
-        .sort-button {
-            background-color: #555;
-            color: #eee;
-            border: 1px solid #777;
-            padding: 6px 10px;
-            font-size: 13px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background-color 0.3s ease;
-        }
-        .sort-button:hover { background-color: #777; }
-        .active-sort { background-color: #3498db; color: white; }
-
-        /* Search */
-        .search-container {
-            width: 60%;
-            display: flex;
-            flex-wrap: wrap;
-            align-content: center;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .search-input {
-            padding: 6px 10px;
-            border-radius: 4px;
-            border: 1px solid #777;
-            background-color: #555;
-            color: #eee;
-            font-size: 13px;
-            width: 75%;
-            margin-right: 5px;
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: #3498db;
-        }
-
-        .clear-search-button {
-            background-color: #555;
-            color: #eee;
-            border: 1px solid #777;
-            padding: 6px 10px;
-            font-size: 13px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background-color 0.3s ease;
-            margin-right: 5px;
-        }
-        .clear-search-button:hover { background-color: #777; }
-
-        /* Main content */
-        .popup-main-content {
-            display: flex;
-            flex-direction: row;
-            height: 68vh;
-        }
-
-        /* Folder navigation */
-        .folder-navigation {
-            width: 200px;
-            padding-right: 20px;
-            border-right: 1px solid #666;
-            overflow-y: auto;
-        }
-
-        .folder-button {
-            display: block;
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 6px;
-            border: none;
-            background-color: #555;
-            color: #eee;
-            text-align: left;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background-color 0.3s ease;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .folder-button:hover, .folder-button.active { background-color: #777; }
-        .active-folder { background-color: #3498db; color: white; }
-
-        /* Image display */
-        .image-display {
-            flex: 1;
-            padding-left: 20px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 20px;
-            overflow-y: auto;
-            justify-content: center;
-            justify-items: center;
-            align-items: center;
-        }
-
-        .empty-gallery-message {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            font-style: italic;
-            color: #aaa;
-        }
-
-        /* Image cards */
-        .image-card {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            border: none;
-            padding: 0px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            transition: transform 0.2s ease;
-            background-color: transparent;
-            width: 250px;
-            height: 300px;
-            overflow: hidden;
-        }
-
-        .image-card:hover { transform: scale(1.03); }
-
-        .image-container-inner {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 0px;
-        }
-
-        .gallery-image {
-            width: 100%;
-            height: 100%;
-            display: block;
-            border-radius: 10px;
-            cursor: pointer;
-            object-fit: cover;
-            z-index: 0;
-        }
-
-        .card-overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-            color: #fff;
-            padding: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom-left-radius: 10px;
-            border-bottom-right-radius: 10px;
-        }
-
-        .image-name {
-            font-size: 1em;
-            color: #eee;
-            margin: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 100%;
-        }
-
-        /* Fullscreen container */
-        .fullscreen-container {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
-            z-index: 2000;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-        }
-
-        /* Header sections for modal windows */
-        .info-header, .raw-metadata-header {
-            display: flex;
-            justify-content: flex-end;
-            width: 100%;
-            padding: 0 0 10px 0;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #444;
-            position: relative;
-        }
-        
-        /* Close buttons */
-        .fullscreen-close, .info-close, .raw-metadata-close {
-            color: #fff;
-            font-size: 30px;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 2001;
-            line-height: 1;
-        }
-
-        /* Fullscreen image */
-        .fullscreen-image {
-            max-width: 90%;
-            max-height: 70%;
-            display: block;
-            margin-top: 60px;
-        }
-
-        /* Info window */
-        .info-window {
-            background-color: #333;
-            color: #eee;
-            border-radius: 8px;
-            padding: 20px;
-            width: 65%;
-            max-height: 80%;
-            overflow-y: auto;
-            position: relative;
-            margin-top: 60px;
-        }
-
-        .info-content {
-            display: flex;
-            flex-direction: row;
-            align-items: flex-start;
-            gap: 20px;
-        }
-
-        .info-preview-image {
-            max-width: 400px;
-            max-height: 400px;
-            border-radius: 8px;
-            display: block;
-            object-fit: contain;
-        }
-
-        .metadata-table {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .metadata-row {
-            display: flex;
-            flex-direction: row;
-            align-items: baseline;
-        }
-
-        .metadata-label {
-            font-weight: bold;
-            margin-right: 10px;
-            flex-basis: 120px;
-            text-align: right;
-        }
-
-        .metadata-value {
-            flex: 1;
-            word-break: break-word;
-        }
-
-        .info-footer {
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 1px solid #444;
-            width: 100%;
-        }
-        
-        .raw-metadata-button {
-            background-color: #555;
-            color: #eee;
-            border: 1px solid #777;
-            padding: 8px 12px;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background-color 0.3s ease;
-            margin-top: 5px;
-        }
-        .raw-metadata-button:hover { background-color: #777; }
-
-        /* Raw metadata dialog */
-        .raw-metadata-dialog {
-            background-color: #222;
-            color: #eee;
-            border-radius: 8px;
-            width: 65%;
-            max-height: 70vh;
-            overflow: hidden;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .raw-metadata-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            background-color: #333;
-            border-bottom: 1px solid #444;
-        }
-
-        .raw-metadata-title {
-            font-size: 18px;
-            font-weight: bold;
-        }
-
-        .raw-metadata-content {
-            padding: 0;
-            flex: 1;
-            max-height: calc(70vh - 60px);
-            overflow: hidden;
-        }
-
-        .raw-metadata-content textarea {
-            width: 100%;
-            height: 100%;
-            min-height: 300px;
-            background-color: #2a2a2a;
-            color: #eee;
-            border: none;
-            padding: 15px;
-            font-family: monospace;
-            font-size: 14px;
-            box-sizing: border-box;
-            overflow: auto;
-            resize: none;
-        }
-
-        /* The fullscreen image view still needs absolute positioning for the close button */
-        .fullscreen-close {
-            position: absolute;
-            top: 20px;
-            right: 30px;
-        }
-
-        /* Date separators */
-        .date-separator {
-            grid-column: 1 / -1;
-            text-align: center;
-            padding: 10px;
-            font-size: 1.2em;
-            color: #eee;
-            border-top: 1px solid #666;
-            border-bottom: 1px solid #666;
-            margin-top: 10px;
-            margin-bottom: 10px;
-            width: 95%;
-        }
-
-        /* Gallery button */
-        .gallery-button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            font-size: 14px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background-color 0.3s ease;
-        }
-        .gallery-button:hover { background-color: #2980b9; }
-
-        /* Info button */
-        .info-button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            font-size: 12px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background-color 0.3s ease;
-        }
-        .info-button:hover { background-color: #2980b9; }
-
-        /* Responsive styles */
-        @media (max-width: 768px) {
-            .popup-content { width: 95%; margin: 5% auto; }
-            .popup-main-content { flex-direction: column; }
-            .folder-navigation {
-                width: 100%;
-                border-right: none;
-                border-bottom: 1px solid #ddd;
-                margin-bottom: 15px;
-                max-height: 120px;
-                overflow-x: auto;
-                overflow-y: auto;
-                white-space: nowrap;
-            }
-            .folder-button { display: inline-block; width: auto; }
-            .image-display { padding-left: 0; }
-            .search-container {
-                width: 100%;
-                margin-bottom: 10px;
-            }
-            .search-input {
-                width: calc(100% - 40px);
-                margin-right: 5px;
-            }
-            .popup-header {
-                flex-wrap: wrap;
-            }
-            .clear-search-button {
-                margin-right: 0px;
-            }
-            
-            /* Info window responsive adjustments */
-            .info-content { flex-direction: column; align-items: center; }
-            .info-preview-image { max-width: 90%; max-height: 300px; }
-            .metadata-table { width: 90%; }
-            .metadata-label { text-align: left; flex-basis: auto; margin-right: 5px; }
-        }
-    `;
-
-    const style = document.createElement('style');
-    style.textContent = styleContent;
-    document.head.appendChild(style);
+    // Load external CSS instead of inline styles
+    const linkElement = document.createElement('link');
+    linkElement.rel = 'stylesheet';
+    linkElement.href = '/extensions/ComfyUI-Gallery/web/css/gallery-styles.css';
+    document.head.appendChild(linkElement);
+    
+    // Also load Material Icons for our enhanced UI
+    const iconLink = document.createElement('link');
+    iconLink.rel = 'stylesheet';
+    iconLink.href = 'https://fonts.googleapis.com/icon?family=Material+Icons';
+    document.head.appendChild(iconLink);
 }
 
 export { Gallery };
