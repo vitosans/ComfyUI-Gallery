@@ -43,6 +43,7 @@ console.log("Gallery: Direct script loaded");
     
     // Function to open the gallery UI
     function openGallery() {
+        window.openGallery = openGallery;
         console.log("Gallery: Opening gallery");
         
         try {

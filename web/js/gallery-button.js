@@ -25,10 +25,7 @@
         button.style.cursor = 'pointer';
         button.style.fontSize = '14px';
         button.style.fontWeight = 'bold';
-        button.style.position = 'fixed';
-        button.style.bottom = '20px';
-        button.style.right = '20px';
-        button.style.zIndex = '10000';
+        button.style.margin = '5px';
         button.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
         
         // Add hover effect
@@ -42,17 +39,48 @@
         // Add click handler
         button.onclick = function() {
             console.log('Gallery button clicked');
-            alert('Gallery Button clicked! This is a placeholder for the actual gallery.');
+            // Try to find and use existing gallery implementation
+            try {
+                if (window.gallery && typeof window.gallery.openGallery === 'function') {
+                    window.gallery.openGallery();
+                } else if (window.openGallery && typeof window.openGallery === 'function') {
+                    window.openGallery();
+                } else {
+                    // Fallback to gallery-direct.js implementation
+                    const directButton = document.getElementById('gallery-direct-script-button');
+                    if (directButton && directButton.onclick) {
+                        directButton.onclick();
+                    } else {
+                        throw new Error('Gallery implementation not found');
+                    }
+                }
+            } catch (error) {
+                console.error('Error opening gallery:', error);
+                alert('Unable to open gallery. See console for details.');
+            }
         };
         
-        // Add to page
-        document.body.appendChild(button);
+        // Add to menu if possible, otherwise to body
+        try {
+            const menuTarget = document.querySelector('.comfy-menu') || 
+                               document.querySelector('.comfy-menu-btns') ||
+                               document.querySelector('#comfy-menu-bar');
+            
+            if (menuTarget) {
+                menuTarget.appendChild(button);
+            } else {
+                document.body.appendChild(button);
+            }
+        } catch (e) {
+            document.body.appendChild(button);
+        }
+        
         console.log('Gallery button created and added to page');
     }
     
     // Function to ensure our button exists
     function ensureButtonExists() {
-        if (!document.getElementById('comfyui-gallery-button')) {
+        if (\!document.getElementById('comfyui-gallery-button')) {
             createGalleryButton();
         }
     }
