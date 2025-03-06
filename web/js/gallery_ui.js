@@ -1,61 +1,57 @@
-// Try to dynamically import app from various possible paths
-let app;
+// Access to global app object if available
+let app = typeof window.app !== 'undefined' ? window.app : null;
+
+// Gallery module functionality via global object
 let Gallery, setGalleryInstance, getGalleryInstance;
 
-// Setup async loader for both app and Gallery
-async function loadDependencies() {
-    // Try to load app from possible paths
-    const appPaths = [
-        "../../scripts/app.js",
-        "../scripts/app.js",
-        "/scripts/app.js",
-        "/extensions/scripts/app.js"
-    ];
+// Initialize gallery module access
+function initGalleryModuleAccess() {
+    console.log("Initializing gallery module access");
     
-    // Try loading app from each path
-    for (const path of appPaths) {
-        try {
-            const module = await import(path);
-            if (module && module.app) {
-                app = module.app;
-                console.log(`Successfully loaded app from ${path}`);
-                break;
-            }
-        } catch (e) {
-            console.warn(`Failed to load app from ${path}:`, e);
-        }
-    }
-    
-    // Create app stub if not found
-    if (!app) {
-        console.warn("Could not load app, creating stub");
-        app = {
-            registerExtension: () => console.warn("App not available, cannot register extension"),
-            api: {
-                addEventListener: () => console.warn("App API not available"),
-                fetchApi: () => Promise.reject("App API not available")
-            }
+    if (window.galleryModule) {
+        console.log("Using gallery module from global object");
+        Gallery = window.galleryModule.Gallery;
+        setGalleryInstance = window.galleryModule.setGalleryInstance;
+        getGalleryInstance = window.galleryModule.getGalleryInstance;
+    } else {
+        console.warn("Gallery module not found on window object, creating stub");
+        // Fallback to basic implementation
+        Gallery = function() { 
+            this.openGallery = () => alert("Gallery module not available. Check console for details.");
         };
-    }
-    
-    // Try to load Gallery from gallery/index.js
-    try {
-        const galleryModule = await import("./gallery/index.js");
-        Gallery = galleryModule.Gallery;
-        setGalleryInstance = galleryModule.setGalleryInstance;
-        getGalleryInstance = galleryModule.getGalleryInstance;
-        console.log("Successfully loaded Gallery module");
-    } catch (e) {
-        console.error("Failed to load Gallery module:", e);
-        // Create stub implementations
-        Gallery = function() { this.openGallery = () => alert("Gallery not available"); };
         setGalleryInstance = () => {};
         getGalleryInstance = () => null;
     }
+    
+    // Try to find app if not already available
+    if (!app) {
+        console.log("Searching for app object");
+        // Check different possible global names
+        const possibleAppNames = ['app', 'LGraphCanvas', 'LiteGraph'];
+        for (const name of possibleAppNames) {
+            if (typeof window[name] !== 'undefined') {
+                app = window[name];
+                console.log(`Found possible app object as window.${name}`);
+                break;
+            }
+        }
+        
+        // Create minimal stub if app still not found
+        if (!app) {
+            console.warn("App not found, creating minimal stub");
+            app = {
+                registerExtension: () => console.warn("App not available"),
+                api: {
+                    addEventListener: () => {},
+                    fetchApi: () => Promise.reject("App not available")
+                }
+            };
+        }
+    }
 }
 
-// Start loading dependencies right away
-loadDependencies();
+// Initialize as soon as possible
+initGalleryModuleAccess();
 
 // Keep track of gallery instance globally
 let gallery = null;
@@ -239,143 +235,138 @@ function ensureButtonExists() {
     }
 }
 
-// Main initialization - wrap in async function that waits for dependencies
-(async function initialize() {
-    // Make sure dependencies are loaded
-    await loadDependencies();
-    
-    if (app && app.registerExtension) {
-        app.registerExtension({
-            name: "Gallery",
-            async setup() {
-                console.log('Gallery extension setup start');
-                
-                // Create button immediately on setup
-                setTimeout(createDirectButton, 0);
-                
-                // Add multiple attempts to ensure button appears
-                setTimeout(ensureButtonExists, 500);
-                setTimeout(ensureButtonExists, 1000);
-                setTimeout(ensureButtonExists, 2000);
-                
-                console.log('Gallery extension setup complete');
-            },
+// Main initialization - attempt to register extension if app is available
+if (app && app.registerExtension) {
+    app.registerExtension({
+        name: "Gallery",
+        async setup() {
+            console.log('Gallery extension setup start');
             
-            async init() {
-                console.log('Gallery extension init start');
-                
-                // Create button again in case setup didn't work
-                createDirectButton();
-                
-                // Try to load gallery data in background
-                try {
-                    console.log('Fetching gallery images');
-                    app.api.fetchApi("/Gallery/images")
-                        .then(response => response.text())
-                        .then(text => {
-                            try {
-                                const data = JSON.parse(text);
-                                console.log('Got gallery data:', data);
-                                
-                                // Find the menu
-                                const menu = document.querySelector('.comfy-menu') || 
-                                           document.getElementsByClassName("flex gap-2 mx-2")[0];
-                                
-                                if (menu) {
-                                    // Create or update gallery instance
-                                    if (gallery) {
-                                        gallery.updateImages(data.folders || {});
-                                    } else {
-                                        gallery = new Gallery({ openButtonBox: menu, folders: data.folders || {} });
-                                        setGalleryInstance(gallery);
-                                    }
-                                }
-                            } catch (e) {
-                                console.error('Error parsing gallery data:', e);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error fetching gallery data:', error);
-                        });
-                } catch (error) {
-                    console.error('Error in gallery data loading:', error);
-                }
-                
-                console.log('Gallery extension init complete');
-            },
+            // Create button immediately on setup
+            setTimeout(createDirectButton, 0);
             
-            async nodeCreated(node) {
+            // Add multiple attempts to ensure button appears
+            setTimeout(ensureButtonExists, 500);
+            setTimeout(ensureButtonExists, 1000);
+            setTimeout(ensureButtonExists, 2000);
+            
+            console.log('Gallery extension setup complete');
+        },
+        
+        async init() {
+            console.log('Gallery extension init start');
+            
+            // Create button again in case setup didn't work
+            createDirectButton();
+            
+            // Try to load gallery data in background
+            try {
+                console.log('Fetching gallery images');
                 try {
-                    if (node.comfyClass === "GalleryNode") {
-                        console.log('Gallery node created');
+                    const response = await app.api.fetchApi("/Gallery/images");
+                    const text = await response.text();
+                    
+                    try {
+                        const data = JSON.parse(text);
+                        console.log('Got gallery data:', data);
                         
-                        // Add button to node
-                        node.addWidget("button", "Open Gallery", null, () => {
+                        // Find the menu
+                        const menu = document.querySelector('.comfy-menu') || 
+                                document.getElementsByClassName("flex gap-2 mx-2")[0];
+                        
+                        if (menu) {
+                            // Create or update gallery instance
                             if (gallery) {
-                                gallery.openGallery();
+                                gallery.updateImages(data.folders || {});
                             } else {
-                                openSimpleGallery();
+                                gallery = new Gallery({ openButtonBox: menu, folders: data.folders || {} });
+                                setGalleryInstance(gallery);
                             }
-                        });
-                        
-                        console.log('Gallery node setup completed');
+                        }
+                    } catch (e) {
+                        console.error('Error parsing gallery data:', e);
                     }
                 } catch (error) {
-                    console.error('Error in nodeCreated handler:', error);
+                    console.error('Error fetching gallery data:', error);
                 }
+            } catch (error) {
+                console.error('Error in gallery data loading:', error);
+            }
+            
+            console.log('Gallery extension init complete');
+        },
+        
+        async nodeCreated(node) {
+            try {
+                if (node.comfyClass === "GalleryNode") {
+                    console.log('Gallery node created');
+                    
+                    // Add button to node
+                    node.addWidget("button", "Open Gallery", null, () => {
+                        if (gallery) {
+                            gallery.openGallery();
+                        } else {
+                            openSimpleGallery();
+                        }
+                    });
+                    
+                    console.log('Gallery node setup completed');
+                }
+            } catch (error) {
+                console.error('Error in nodeCreated handler:', error);
+            }
+        }
+    });
+    
+    // Set up event listeners if app.api exists
+    if (app.api) {
+        // Event listeners
+        app.api.addEventListener("Gallery.file_change", (event) => {
+            console.log("file_change event received");
+            try {
+                const galleryInstance = gallery || getGalleryInstance();
+                if (galleryInstance) {
+                    app.api.fetchApi("/Gallery/images")
+                        .then(response => response.text())
+                        .then(text => JSON.parse(text))
+                        .then(data => galleryInstance.updateImages(data.folders || {}))
+                        .catch(error => {
+                            console.error('Error handling file_change event:', error);
+                        });
+                }
+            } catch (error) {
+                console.error('Error in file_change event handler:', error);
             }
         });
         
-        // Set up event listeners if app.api exists
-        if (app.api && app.api.addEventListener) {
-            // Event listeners
-            app.api.addEventListener("Gallery.file_change", (event) => {
-                console.log("file_change event received");
-                try {
-                    const galleryInstance = gallery || getGalleryInstance();
-                    if (galleryInstance) {
-                        app.api.fetchApi("/Gallery/images")
-                            .then(response => response.text())
-                            .then(text => JSON.parse(text))
-                            .then(data => galleryInstance.updateImages(data.folders || {}))
-                            .catch(error => {
-                                console.error('Error handling file_change event:', error);
-                            });
-                    }
-                } catch (error) {
-                    console.error('Error in file_change event handler:', error);
+        app.api.addEventListener("Gallery.update", (event) => {
+            console.log("update event received");
+            try {
+                const galleryInstance = gallery || getGalleryInstance();
+                if (galleryInstance) {
+                    galleryInstance.updateImages(event.detail.folders);
                 }
-            });
-            
-            app.api.addEventListener("Gallery.update", (event) => {
-                console.log("update event received");
-                try {
-                    const galleryInstance = gallery || getGalleryInstance();
-                    if (galleryInstance) {
-                        galleryInstance.updateImages(event.detail.folders);
-                    }
-                } catch (error) {
-                    console.error('Error in update event handler:', error);
+            } catch (error) {
+                console.error('Error in update event handler:', error);
+            }
+        });
+        
+        app.api.addEventListener("Gallery.clear", (event) => {
+            console.log("clear event received");
+            try {
+                const galleryInstance = gallery || getGalleryInstance();
+                if (galleryInstance) {
+                    galleryInstance.clearGallery();
                 }
-            });
-            
-            app.api.addEventListener("Gallery.clear", (event) => {
-                console.log("clear event received");
-                try {
-                    const galleryInstance = gallery || getGalleryInstance();
-                    if (galleryInstance) {
-                        galleryInstance.clearGallery();
-                    }
-                } catch (error) {
-                    console.error('Error in clear event handler:', error);
-                }
-            });
-        }
-    } else {
-        console.warn("App not available, falling back to direct initialization");
+            } catch (error) {
+                console.error('Error in clear event handler:', error);
+            }
+        });
     }
-    
-    // Direct initialization - runs as soon as this script loads
-    console.log('Gallery UI script loaded - direct initialization');
-    setTimeout(createDirectButton, 0);
-})();
+} else {
+    console.warn("App not available for extension registration, creating button directly");
+}
+
+// Always create button directly as a fallback
+console.log('Gallery UI script loaded - direct initialization');
+setTimeout(createDirectButton, 0);
