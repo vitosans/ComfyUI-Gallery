@@ -442,41 +442,8 @@ Object.assign(Gallery.prototype, {
 });
 
 // Note: showLoading and hideLoading are imported from image-handling.js
+// showToast is imported from metadata-display.js
 // We removed the duplicate implementations to fix conflicts
-
-function showToast(message, type) {
-    console.log(`Toast (${type}): ${message}`);
-    
-    // Create a basic toast notification
-    const toast = document.createElement('div');
-    toast.style.position = 'fixed';
-    toast.style.bottom = '20px';
-    toast.style.right = '20px';
-    toast.style.padding = '10px 20px';
-    toast.style.borderRadius = '4px';
-    toast.style.color = 'white';
-    toast.style.zIndex = '9999';
-    
-    // Set background color based on type
-    switch(type) {
-        case 'success':
-            toast.style.backgroundColor = '#27ae60';
-            break;
-        case 'error':
-            toast.style.backgroundColor = '#c0392b';
-            break;
-        default:
-            toast.style.backgroundColor = '#2980b9';
-    }
-    
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
 
 // Add applyStyles method back into the Gallery class
 function applyStyles() {

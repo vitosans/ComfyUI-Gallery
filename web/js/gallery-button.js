@@ -80,7 +80,7 @@
     
     // Function to ensure our button exists
     function ensureButtonExists() {
-        if (\!document.getElementById('comfyui-gallery-button')) {
+        if (!document.getElementById('comfyui-gallery-button')) {
             createGalleryButton();
         }
     }
