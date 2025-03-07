@@ -78,9 +78,7 @@ class GalleryNode:
                             print(f"Gallery Node: Error processing image {full_path}: {e}")
 
                 folder_key = os.path.join(base_path, relative_path) if relative_path else base_path
-                # Only add folders that contain images
-                if images_in_folder:
-                    folders_data[folder_key] = images_in_folder
+                folders_data[folder_key] = images_in_folder
 
             except Exception as e:
                 print(f"Gallery Node: Error scanning directory {dir_path}: {e}")
