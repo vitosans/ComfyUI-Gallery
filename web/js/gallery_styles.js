@@ -135,9 +135,10 @@ export const galleryStyles = `
         width: 250px;
         height: 300px;
         overflow: hidden;
+        position: relative;
     }
 
-    .image-card:hover { transform: scale: 1.03; }
+    .image-card:hover { transform: scale(1.03); }
 
     .image-container-inner {
         position: relative;
@@ -149,7 +150,7 @@ export const galleryStyles = `
         margin-bottom: 0px;
    }
 
-    .gallery-image {
+    .gallery-image, .gallery-media {
         width: 100%;
         height: 100%;
         display: block;
@@ -172,6 +173,7 @@ export const galleryStyles = `
         align-items: center;
         border-bottom-left-radius: 10px;
         border-bottom-right-radius: 10px;
+        z-index: 1;
     }
 
     .image-name {
@@ -181,7 +183,78 @@ export const galleryStyles = `
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        max-width: 100%;
+        max-width: 60%;
+    }
+
+    /* Media Badges */
+    .media-badges {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+        z-index: 1;
+    }
+
+    .media-badge {
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: bold;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: white;
+        text-transform: uppercase;
+    }
+
+    .type-badge {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+
+    .video-badge {
+        background-color: rgba(231, 76, 60, 0.8);
+    }
+
+    .image-badge {
+        background-color: rgba(46, 204, 113, 0.8);
+    }
+
+    .gif-badge {
+        background-color: rgba(52, 152, 219, 0.8);
+    }
+
+    .size-badge {
+        background-color: rgba(0, 0, 0, 0.6);
+    }
+
+    /* Card Buttons */
+    .card-buttons {
+        display: flex;
+        gap: 5px;
+    }
+
+    .info-button, .download-button {
+        background-color: #3498db;
+        color: white;
+        border: none;
+        padding: 5px 8px;
+        font-size: 12px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background-color 0.3s ease;
+    }
+    
+    .info-button:hover, .download-button:hover {
+        background-color: #2980b9;
+    }
+    
+    .download-button {
+        background-color: #27ae60;
+    }
+    
+    .download-button:hover {
+        background-color: #219955;
     }
 
     /* Fullscreen Container Styles (for both image and info) */
@@ -199,8 +272,20 @@ export const galleryStyles = `
     }
 
     /* Fullscreen Image Styles */
-    .fullscreen-image { max-width: 90%; max-height: 70%; display: block; margin-top: 60px;} /* Adjusted margin */
-
+    .fullscreen-image { 
+        max-width: 90%; 
+        max-height: 70%; 
+        display: block; 
+        margin-top: 60px;
+    }
+    
+    /* Fullscreen Video Styles */
+    .fullscreen-video {
+        max-width: 90%;
+        max-height: 90%;
+        display: block;
+        margin-top: 40px;
+    }
 
     /* Info Window Styles */
     .info-window {
@@ -504,5 +589,73 @@ export const galleryStyles = `
         color: #aaa;
         padding: 10px;
         text-align: center;
+    }
+    
+    /* Loading spinner/indicator */
+    .loading-indicator {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 50px;
+        height: 50px;
+        border: 5px solid rgba(255, 255, 255, 0.2);
+        border-top: 5px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    
+    /* Customizable scrollbar for better UX */
+    .image-display::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .image-display::-webkit-scrollbar-track {
+        background: #555;
+        border-radius: 4px;
+    }
+    
+    .image-display::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+    
+    .image-display::-webkit-scrollbar-thumb:hover {
+        background: #3498db;
+    }
+    
+    /* View mode toggle buttons */
+    .view-mode-buttons {
+        display: flex;
+        gap: 8px;
+        margin-right: 10px;
+    }
+    
+    .view-mode-button {
+        background-color: #555;
+        color: #eee;
+        border: 1px solid #777;
+        padding: 6px 10px;
+        font-size: 13px;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background-color 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .view-mode-button:hover {
+        background-color: #777;
+    }
+    
+    .view-mode-button.active {
+        background-color: #3498db;
+        color: white;
     }
 `;
