@@ -92,13 +92,13 @@ class GalleryNode:
 
     @classmethod
     def JAVASCRIPT_IMPORTS(cls):
-        # Import all necessary JS files for the gallery
+        # Import from the root directory
         return [
-            {"path": "./web/js/gallery_ui.js"},
-            {"path": "./web/js/gallery.js"},
-            {"path": "./web/js/gallery_settings.js"},
-            {"path": "./web/js/gallery_styles.js"},
-            {"path": "./web/js/gallery_keyboard.js"}
+            {"path": "gallery_ui.js"},
+            {"path": "gallery.js"},
+            {"path": "gallery_settings.js"},
+            {"path": "gallery_styles.js"},
+            {"path": "gallery_keyboard.js"}
         ]
 
 
