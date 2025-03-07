@@ -101,8 +101,10 @@ async def get_thumbnail(request):
         if not content_type:
             content_type = 'application/octet-stream'
             
-        # Return the thumbnail file
-        return web.FileResponse(thumbnail_path, content_type=content_type)
+        # Create FileResponse with correct content type
+        response = web.FileResponse(thumbnail_path)
+        response.content_type = content_type
+        return response
     else:
         return web.Response(status=404, text=json.dumps({"error": "Thumbnail not found"}), content_type="application/json")
 
