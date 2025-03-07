@@ -92,7 +92,14 @@ class GalleryNode:
 
     @classmethod
     def JAVASCRIPT_IMPORTS(cls):
-        return [{"path": "./web/js/gallery_ui.js"}]
+        # Import all necessary JS files for the gallery
+        return [
+            {"path": "./web/js/gallery_ui.js"},
+            {"path": "./web/js/gallery.js"},
+            {"path": "./web/js/gallery_settings.js"},
+            {"path": "./web/js/gallery_styles.js"},
+            {"path": "./web/js/gallery_keyboard.js"}
+        ]
 
 
 NODE_CLASS_MAPPINGS = {"GalleryNode": GalleryNode}
