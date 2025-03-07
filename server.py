@@ -6,16 +6,23 @@ import time
 from datetime import datetime
 import json
 import math
+import mimetypes
+from pathlib import Path
 
 from .folder_monitor import FileSystemMonitor, scan_directory_initial
-from .folder_scanner import _scan_for_images
+from .folder_scanner import _scan_for_images, get_thumbnail_dir, SUPPORTED_EXTENSIONS
 
 # Add ComfyUI root to sys.path HERE
 import sys
 comfy_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(comfy_path)
 
-monitor = None # Initialize monitor to None - monitoring starts on request
+# Initialize monitor to None - monitoring starts on request
+monitor = None 
+
+# Cache for API responses
+_gallery_cache = {}
+_cache_expiry_time = 5  # seconds
 
 def sanitize_json_data(data):
     """Recursively sanitizes data to be JSON serializable."""
@@ -35,29 +42,75 @@ def sanitize_json_data(data):
 
 @PromptServer.instance.routes.get("/Gallery/images")
 async def get_gallery_images(request):
-    """Endpoint to get gallery images, accepts relative_path."""
+    """Endpoint to get gallery images, accepts relative_path with caching."""
+    global _gallery_cache
+    
     relative_path = request.rel_url.query.get("relative_path", "./")
     full_monitor_path = os.path.normpath(os.path.join(folder_paths.get_output_directory(), "..", "output", relative_path))
+    
+    # Check for cached response
+    cache_key = f"gallery_images_{relative_path}"
+    current_time = time.time()
+    
+    if cache_key in _gallery_cache:
+        timestamp, data = _gallery_cache[cache_key]
+        if current_time - timestamp < _cache_expiry_time:
+            # Cache is still valid
+            return web.Response(text=data, content_type="application/json")
 
     try:
+        # Check if path exists
+        if not os.path.isdir(full_monitor_path):
+            return web.Response(status=404, text=json.dumps({"error": "Directory not found"}), content_type="application/json")
+            
+        # Check if path is empty
+        if not any(os.scandir(full_monitor_path)):
+            empty_response = json.dumps({"folders": {}})
+            _gallery_cache[cache_key] = (current_time, empty_response)
+            return web.Response(text=empty_response, content_type="application/json")
+            
+        # Perform full scan with metadata
         folders_with_metadata, _ = _scan_for_images(
             full_monitor_path, "output", True
         )
         sanitized_folders = sanitize_json_data(folders_with_metadata)
         json_string = json.dumps({"folders": sanitized_folders})
+        
+        # Cache the response
+        _gallery_cache[cache_key] = (current_time, json_string)
+        
         return web.Response(text=json_string, content_type="application/json")
     except Exception as e:
         print(f"Error in /Gallery/images: {e}")
         import traceback
         traceback.print_exc()
-        return web.Response(status=500, text=str(e))
+        return web.Response(status=500, text=json.dumps({"error": str(e)}), content_type="application/json")
+
+
+@PromptServer.instance.routes.get("/thumbnails/{thumbnail_name}")
+async def get_thumbnail(request):
+    """Serve generated thumbnails."""
+    thumbnail_name = request.match_info.get('thumbnail_name', '')
+    thumbnail_dir = get_thumbnail_dir()
+    thumbnail_path = os.path.join(thumbnail_dir, thumbnail_name)
+    
+    if os.path.exists(thumbnail_path) and os.path.isfile(thumbnail_path):
+        # Determine content type from file extension
+        content_type, _ = mimetypes.guess_type(thumbnail_path)
+        if not content_type:
+            content_type = 'application/octet-stream'
+            
+        # Return the thumbnail file
+        return web.FileResponse(thumbnail_path, content_type=content_type)
+    else:
+        return web.Response(status=404, text=json.dumps({"error": "Thumbnail not found"}), content_type="application/json")
 
 
 @PromptServer.instance.routes.post("/Gallery/monitor/start")
 async def start_gallery_monitor(request):
     """Endpoint to start gallery monitoring, accepts relative_path."""
     global monitor
-    if monitor and monitor.thread and monitor.thread.is_alive(): # Use monitor.thread.is_alive()
+    if monitor and monitor.thread and monitor.thread.is_alive():
         print("FileSystemMonitor: Monitor already running, stopping previous monitor.")
         monitor.stop_monitoring()
 
@@ -82,12 +135,25 @@ async def start_gallery_monitor(request):
 async def stop_gallery_monitor(request):
     """Endpoint to stop gallery monitoring."""
     global monitor
-    if monitor and monitor.thread and monitor.thread.is_alive(): # Use monitor.thread.is_alive()
+    if monitor and monitor.thread and monitor.thread.is_alive():
         monitor.stop_monitoring()
         monitor = None
         return web.Response(text="Gallery monitor stopped", content_type="text/plain")
     else:
         return web.Response(text="Gallery monitor is not running.", status=200, content_type="text/plain")
+
+
+@PromptServer.instance.routes.post("/Gallery/cache/clear")
+async def clear_gallery_cache(request):
+    """Endpoint to clear the gallery cache."""
+    global _gallery_cache
+    _gallery_cache.clear()
+    
+    # Also clear the metadata cache from folder_scanner
+    from .folder_scanner import _metadata_cache
+    _metadata_cache.clear()
+    
+    return web.Response(text="Gallery cache cleared", content_type="text/plain")
 
 
 @PromptServer.instance.routes.patch("/Gallery/updateImages")
