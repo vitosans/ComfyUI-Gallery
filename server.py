@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 import math
 import mimetypes
+import hashlib
 from pathlib import Path
 
 from .folder_monitor import FileSystemMonitor, scan_directory_initial
@@ -154,6 +155,128 @@ async def clear_gallery_cache(request):
     _metadata_cache.clear()
     
     return web.Response(text="Gallery cache cleared", content_type="text/plain")
+
+
+@PromptServer.instance.routes.delete("/Gallery/files")
+async def delete_gallery_file(request):
+    """Endpoint to delete a file or folder."""
+    try:
+        data = await request.json()
+        file_path = data.get("file_path", "")
+        is_folder = data.get("is_folder", False)
+        
+        # Validate path to ensure it's within output directory
+        base_output_path = os.path.join(folder_paths.get_output_directory(), "..", "output")
+        full_path = os.path.normpath(os.path.join(base_output_path, file_path))
+        
+        # Security check to ensure path is within output directory
+        if not os.path.abspath(full_path).startswith(os.path.abspath(base_output_path)):
+            return web.Response(status=403, text=json.dumps({"error": "Access denied: Path is outside gallery directory"}), 
+                              content_type="application/json")
+        
+        if not os.path.exists(full_path):
+            return web.Response(status=404, text=json.dumps({"error": "File or folder not found"}), 
+                              content_type="application/json")
+        
+        if is_folder:
+            import shutil
+            shutil.rmtree(full_path)
+        else:
+            os.remove(full_path)
+            
+            # Also remove thumbnail if it exists
+            filename = os.path.basename(file_path)
+            path_hash = hashlib.md5(full_path.encode()).hexdigest()
+            file_ext = os.path.splitext(filename)[1].lower()
+            thumbnail_dir = get_thumbnail_dir()
+            thumbnail_path = os.path.join(thumbnail_dir, f"thumb_{path_hash}{file_ext}")
+            if os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+        
+        # Clear cache to reflect changes
+        global _gallery_cache
+        _gallery_cache.clear()
+        
+        return web.Response(text=json.dumps({"success": True}), content_type="application/json")
+    except Exception as e:
+        print(f"Error in /Gallery/files DELETE: {e}")
+        import traceback
+        traceback.print_exc()
+        return web.Response(status=500, text=json.dumps({"error": str(e)}), content_type="application/json")
+
+
+@PromptServer.instance.routes.post("/Gallery/move")
+async def move_gallery_file(request):
+    """Endpoint to move a file or folder."""
+    try:
+        data = await request.json()
+        source_path = data.get("source_path", "")
+        destination_path = data.get("destination_path", "")
+        is_folder = data.get("is_folder", False)
+        
+        # Validate paths to ensure they're within output directory
+        base_output_path = os.path.join(folder_paths.get_output_directory(), "..", "output")
+        full_source_path = os.path.normpath(os.path.join(base_output_path, source_path))
+        full_destination_path = os.path.normpath(os.path.join(base_output_path, destination_path))
+        
+        # Security checks
+        if not os.path.abspath(full_source_path).startswith(os.path.abspath(base_output_path)) or \
+           not os.path.abspath(full_destination_path).startswith(os.path.abspath(base_output_path)):
+            return web.Response(status=403, text=json.dumps({"error": "Access denied: Path is outside gallery directory"}), 
+                              content_type="application/json")
+        
+        if not os.path.exists(full_source_path):
+            return web.Response(status=404, text=json.dumps({"error": "Source file or folder not found"}), 
+                              content_type="application/json")
+        
+        # Create destination directory if it doesn't exist
+        os.makedirs(os.path.dirname(full_destination_path), exist_ok=True)
+        
+        # Move the file or folder
+        import shutil
+        shutil.move(full_source_path, full_destination_path)
+        
+        # Clear cache to reflect changes
+        global _gallery_cache
+        _gallery_cache.clear()
+        
+        return web.Response(text=json.dumps({"success": True}), content_type="application/json")
+    except Exception as e:
+        print(f"Error in /Gallery/move: {e}")
+        import traceback
+        traceback.print_exc()
+        return web.Response(status=500, text=json.dumps({"error": str(e)}), content_type="application/json")
+
+
+@PromptServer.instance.routes.post("/Gallery/folders")
+async def create_gallery_folder(request):
+    """Endpoint to create a new folder."""
+    try:
+        data = await request.json()
+        folder_path = data.get("folder_path", "")
+        
+        # Validate path to ensure it's within output directory
+        base_output_path = os.path.join(folder_paths.get_output_directory(), "..", "output")
+        full_folder_path = os.path.normpath(os.path.join(base_output_path, folder_path))
+        
+        # Security check
+        if not os.path.abspath(full_folder_path).startswith(os.path.abspath(base_output_path)):
+            return web.Response(status=403, text=json.dumps({"error": "Access denied: Path is outside gallery directory"}), 
+                              content_type="application/json")
+        
+        # Create the folder
+        os.makedirs(full_folder_path, exist_ok=True)
+        
+        # Clear cache to reflect changes
+        global _gallery_cache
+        _gallery_cache.clear()
+        
+        return web.Response(text=json.dumps({"success": True}), content_type="application/json")
+    except Exception as e:
+        print(f"Error in /Gallery/folders: {e}")
+        import traceback
+        traceback.print_exc()
+        return web.Response(status=500, text=json.dumps({"error": str(e)}), content_type="application/json")
 
 
 @PromptServer.instance.routes.patch("/Gallery/updateImages")
