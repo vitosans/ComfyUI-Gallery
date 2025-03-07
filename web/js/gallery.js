@@ -47,6 +47,12 @@ export class Gallery {
         this.gallerySettings = options.gallerySettings; // Store GallerySettings instance // ADDED: Store setting instance
         /** @type {HTMLDivElement | null} */
         this.floatingButtonContainer = null;
+        /** @type {number} */
+        this.currentPage = 1;
+        /** @type {number} */
+        this.imagesPerPage = 50; // Default images per page
+        /** @type {HTMLDivElement | null} */
+        this.paginationContainer = null;
 
 
         this.init();
@@ -70,6 +76,11 @@ export class Gallery {
         this.updateButtonBoxQuery(this.currentSettings.openButtonBoxQuery);
         this.updateButtonLabel(this.currentSettings.openButtonLabel);
         this.updateButtonFloating(this.currentSettings.openButtonFloating);
+        
+        // Load pagination settings if available
+        if (this.currentSettings.imagesPerPage) {
+            this.imagesPerPage = parseInt(this.currentSettings.imagesPerPage, 10);
+        }
     }
 
     /**
@@ -83,6 +94,22 @@ export class Gallery {
         this.clearGallery(); // Clear existing gallery data
 
         resetGallery(relativePath);
+    }
+
+    /**
+     * Updates the pagination settings.
+     * @param {number} imagesPerPage - Number of images to display per page.
+     */
+    updatePagination(imagesPerPage) {
+        if (this.imagesPerPage === imagesPerPage) return; // No change
+        
+        this.imagesPerPage = imagesPerPage;
+        this.currentSettings.imagesPerPage = imagesPerPage;
+        this.currentPage = 1; // Reset to first page when changing page size
+        
+        if (this.currentFolder) {
+            this.loadFolderImages(this.currentFolder);
+        }
     }
 
     /**
@@ -359,6 +386,11 @@ export class Gallery {
             imageDisplay.classList.add('image-display');
             mainContent.appendChild(imageDisplay);
 
+            // Create pagination container
+            this.paginationContainer = document.createElement('div');
+            this.paginationContainer.classList.add('pagination-container');
+            popupContent.appendChild(this.paginationContainer);
+
             popupContent.appendChild(mainContent);
             this.galleryPopup.appendChild(popupContent);
             document.body.appendChild(this.galleryPopup);
@@ -415,6 +447,7 @@ export class Gallery {
         searchInput.classList.add('search-input');
         searchInput.addEventListener('input', (event) => {
             this.searchText = event.target.value;
+            this.currentPage = 1; // Reset to first page on search
             this.loadFolderImages(this.currentFolder);
         });
         searchContainer.appendChild(searchInput);
@@ -424,6 +457,7 @@ export class Gallery {
         clearSearchButton.addEventListener('click', () => {
             this.searchText = "";
             searchInput.value = "";
+            this.currentPage = 1; // Reset to first page when clearing search
             this.loadFolderImages(this.currentFolder);
         });
         searchContainer.appendChild(clearSearchButton);
@@ -451,9 +485,129 @@ export class Gallery {
         });
         header.appendChild(sortDiv);
 
+        // Page Size Selector
+        const pageSizeDiv = document.createElement('div');
+        pageSizeDiv.classList.add('page-size-container');
+        
+        const pageSizeLabel = document.createElement('span');
+        pageSizeLabel.textContent = 'Items per page:';
+        pageSizeLabel.classList.add('page-size-label');
+        pageSizeDiv.appendChild(pageSizeLabel);
+        
+        const pageSizeSelect = document.createElement('select');
+        pageSizeSelect.classList.add('page-size-select');
+        [20, 50, 100, 200, 500].forEach(size => {
+            const option = document.createElement('option');
+            option.value = size;
+            option.textContent = size.toString();
+            if (size === this.imagesPerPage) {
+                option.selected = true;
+            }
+            pageSizeSelect.appendChild(option);
+        });
+        pageSizeSelect.addEventListener('change', (e) => {
+            this.updatePagination(parseInt(e.target.value, 10));
+        });
+        pageSizeDiv.appendChild(pageSizeSelect);
+        
+        header.appendChild(pageSizeDiv);
+
         return header;
     }
 
+    /**
+     * Creates pagination controls for navigating between pages of images.
+     * @param {number} totalPages - Total number of pages.
+     */
+    createPaginationControls(totalPages) {
+        if (!this.paginationContainer) return;
+        
+        this.paginationContainer.innerHTML = '';
+        
+        if (totalPages <= 1) {
+            this.paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        this.paginationContainer.style.display = 'flex';
+        
+        // First page button
+        const firstPageButton = document.createElement('button');
+        firstPageButton.innerHTML = '&laquo;';
+        firstPageButton.classList.add('pagination-button');
+        firstPageButton.disabled = this.currentPage === 1;
+        firstPageButton.addEventListener('click', () => this.goToPage(1));
+        this.paginationContainer.appendChild(firstPageButton);
+        
+        // Previous page button
+        const prevPageButton = document.createElement('button');
+        prevPageButton.innerHTML = '&lsaquo;';
+        prevPageButton.classList.add('pagination-button');
+        prevPageButton.disabled = this.currentPage === 1;
+        prevPageButton.addEventListener('click', () => this.goToPage(this.currentPage - 1));
+        this.paginationContainer.appendChild(prevPageButton);
+        
+        // Page number buttons
+        let startPage = Math.max(1, this.currentPage - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        
+        // Adjust startPage if endPage is at maximum
+        if (endPage === totalPages) {
+            startPage = Math.max(1, endPage - 4);
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const pageButton = document.createElement('button');
+            pageButton.textContent = i.toString();
+            pageButton.classList.add('pagination-button');
+            
+            if (i === this.currentPage) {
+                pageButton.classList.add('active-page');
+            }
+            
+            pageButton.addEventListener('click', () => this.goToPage(i));
+            this.paginationContainer.appendChild(pageButton);
+        }
+        
+        // Next page button
+        const nextPageButton = document.createElement('button');
+        nextPageButton.innerHTML = '&rsaquo;';
+        nextPageButton.classList.add('pagination-button');
+        nextPageButton.disabled = this.currentPage === totalPages;
+        nextPageButton.addEventListener('click', () => this.goToPage(this.currentPage + 1));
+        this.paginationContainer.appendChild(nextPageButton);
+        
+        // Last page button
+        const lastPageButton = document.createElement('button');
+        lastPageButton.innerHTML = '&raquo;';
+        lastPageButton.classList.add('pagination-button');
+        lastPageButton.disabled = this.currentPage === totalPages;
+        lastPageButton.addEventListener('click', () => this.goToPage(totalPages));
+        this.paginationContainer.appendChild(lastPageButton);
+        
+        // Page info
+        const pageInfo = document.createElement('span');
+        pageInfo.classList.add('pagination-info');
+        pageInfo.textContent = `Page ${this.currentPage} of ${totalPages}`;
+        this.paginationContainer.appendChild(pageInfo);
+    }
+
+    /**
+     * Navigate to a specific page.
+     * @param {number} pageNumber - The page number to navigate to.
+     */
+    goToPage(pageNumber) {
+        if (this.currentPage === pageNumber) return;
+        
+        this.currentPage = pageNumber;
+        this.loadFolderImages(this.currentFolder);
+        
+        // Scroll to top of image display
+        const imageDisplay = this.galleryPopup?.querySelector('.image-display');
+        if (imageDisplay) {
+            imageDisplay.scrollTop = 0;
+        }
+    }
 
     /**
      * Creates the fullscreen container, used for both image and info windows.
@@ -540,7 +694,10 @@ export class Gallery {
             const folderButton = document.createElement('button');
             folderButton.textContent = folderName;
             folderButton.classList.add('folder-button');
-            folderButton.addEventListener('click', () => this.loadFolderImages(folderName));
+            folderButton.addEventListener('click', () => {
+                this.currentPage = 1; // Reset to first page when changing folders
+                this.loadFolderImages(folderName);
+            });
             if (folderName === this.currentFolder) {
                 folderButton.classList.add('active-folder');
             } else {
@@ -577,6 +734,10 @@ export class Gallery {
         if (!folderContent || Object.keys(folderContent).length === 0) { // Check if folderContent is empty
             imageDisplay.textContent = 'No images in this folder.';
             imageDisplay.classList.add('empty-gallery-message');
+            // Hide pagination if no images
+            if (this.paginationContainer) {
+                this.paginationContainer.style.display = 'none';
+            }
             return;
         }
         imageDisplay.classList.remove('empty-gallery-message');
@@ -589,19 +750,41 @@ export class Gallery {
             filteredImages = images.filter(imageInfo => imageInfo.name.toLowerCase().includes(searchTerm));
         }
 
-
         if (filteredImages.length === 0 && this.searchText) {
             imageDisplay.textContent = 'No images found for your search.';
             imageDisplay.classList.add('empty-gallery-message');
+            // Hide pagination if no search results
+            if (this.paginationContainer) {
+                this.paginationContainer.style.display = 'none';
+            }
             return;
         }
         imageDisplay.classList.remove('empty-gallery-message');
 
+        // Sort the images
         filteredImages = this.sortImagesArray(filteredImages, this.currentSort);
+        
+        // Calculate pagination
+        const totalImages = filteredImages.length;
+        const totalPages = Math.ceil(totalImages / this.imagesPerPage);
+        
+        // Ensure current page is valid
+        if (this.currentPage > totalPages) {
+            this.currentPage = totalPages;
+        }
+        
+        // Get current page images
+        const startIndex = (this.currentPage - 1) * this.imagesPerPage;
+        const endIndex = Math.min(startIndex + this.imagesPerPage, totalImages);
+        const currentPageImages = filteredImages.slice(startIndex, endIndex);
+        
+        // Create pagination controls
+        this.createPaginationControls(totalPages);
 
+        // Display images for current page
         let lastDate = null;
-        filteredImages.forEach(imageInfo => {
-            const imageDate = (this.currentSort === "newest" || this.currentSort === "oldest") ? imageInfo.date.split(" ")[0] : null;
+        currentPageImages.forEach(imageInfo => {
+            const imageDate = (this.currentSort === "newest" || this.currentSort === "oldest") ? imageInfo.date?.split(" ")[0] : null;
             if (imageDate && imageDate !== lastDate) {
                 const dateSeparator = document.createElement('div');
                 dateSeparator.classList.add('date-separator');
@@ -911,6 +1094,7 @@ export class Gallery {
         });
 
         if (this.currentFolder) {
+            this.currentPage = 1; // Reset to first page when sorting
             this.loadFolderImages(this.currentFolder);
         }
     }
@@ -932,7 +1116,7 @@ export class Gallery {
         } else if (sortType === 'name_asc') {
             sortedImages.sort((a, b) => a.name.localeCompare(b.name));
         } else if (sortType === 'name_desc') {
-            sortedImages.sort((a, b) => b.name.localeCompare(b.name));
+            sortedImages.sort((a, b) => b.name.localeCompare(a.name));
         }
         return sortedImages;
     }
@@ -973,6 +1157,7 @@ export class Gallery {
      */
     clearGallery() {
         this.folders = {};
+        this.currentPage = 1;
         if (this.galleryPopup) {
             this.populateFolderNavigation(this.galleryPopup.querySelector('.folder-navigation'));
         }
@@ -984,6 +1169,7 @@ export class Gallery {
      */
     initializeFolders(initialFolders) {
         this.folders = initialFolders;
+        this.currentPage = 1;
         if (this.galleryPopup) {
             this.populateFolderNavigation(this.galleryPopup.querySelector('.folder-navigation'));
         }
@@ -1093,72 +1279,74 @@ export class Gallery {
     }
 
     /**
-     * Loads and displays images for a given folder. (Modified to work with nested data structure)
-     * @param {string} folderName - The name of the folder to load images from.
-     */
-    loadFolderImages(folderName) {
-        if (!folderName) return;
-        this.currentFolder = folderName;
-
-        // Update active folder button
-        const folderButtons = this.galleryPopup.querySelectorAll('.folder-button');
-        folderButtons.forEach(button => {
-            button.classList.toggle('active-folder', button.textContent === folderName);
-        });
-
-        const imageDisplay = this.galleryPopup?.querySelector('.image-display');
-        if (!imageDisplay) return;
-
-        imageDisplay.innerHTML = '';
-        let folderContent = this.folders[folderName]; // Get folder content from nested structure
-
-        if (!folderContent || Object.keys(folderContent).length === 0) { // Check if folderContent is empty
-            imageDisplay.textContent = 'No images in this folder.';
-            imageDisplay.classList.add('empty-gallery-message');
-            return;
-        }
-        imageDisplay.classList.remove('empty-gallery-message');
-
-        let images = Object.values(folderContent); // Get array of image info objects for sorting/filtering
-
-        let filteredImages = images;
-        if (this.searchText) {
-            const searchTerm = this.searchText.toLowerCase();
-            filteredImages = images.filter(imageInfo => imageInfo.name.toLowerCase().includes(searchTerm));
-        }
-
-
-        if (filteredImages.length === 0 && this.searchText) {
-            imageDisplay.textContent = 'No images found for your search.';
-            imageDisplay.classList.add('empty-gallery-message');
-            return;
-        }
-        imageDisplay.classList.remove('empty-gallery-message');
-
-        filteredImages = this.sortImagesArray(filteredImages, this.currentSort);
-
-        let lastDate = null;
-        filteredImages.forEach(imageInfo => {
-            const imageDate = (this.currentSort === "newest" || this.currentSort === "oldest") ? imageInfo.date.split(" ")[0] : null;
-            if (imageDate && imageDate !== lastDate) {
-                const dateSeparator = document.createElement('div');
-                dateSeparator.classList.add('date-separator');
-                dateSeparator.textContent = imageDate;
-                imageDisplay.appendChild(dateSeparator);
-                lastDate = imageDate;
-            }
-            this.createImageCard(imageDisplay, imageInfo);
-        });
-
-        this.setupLazyLoading(imageDisplay);
-    }
-
-    /**
      * Applies CSS styles to the document head.
      */
     applyStyles() {
         const style = document.createElement('style');
-        style.textContent = galleryStyles; // Use imported styles
+        style.textContent = galleryStyles + `
+            /* Pagination Styles */
+            .pagination-container {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin: 15px 0;
+                padding: 10px;
+                gap: 5px;
+                flex-wrap: wrap;
+            }
+            
+            .pagination-button {
+                padding: 8px 12px;
+                background-color: #444;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background-color 0.2s;
+            }
+            
+            .pagination-button:hover:not(:disabled) {
+                background-color: #666;
+            }
+            
+            .pagination-button:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            
+            .pagination-button.active-page {
+                background-color: #4CAF50;
+                font-weight: bold;
+            }
+            
+            .pagination-info {
+                margin-left: 15px;
+                color: #ccc;
+                font-size: 14px;
+            }
+            
+            .page-size-container {
+                display: flex;
+                align-items: center;
+                margin-left: 15px;
+            }
+            
+            .page-size-label {
+                margin-right: 8px;
+                color: #ddd;
+                font-size: 14px;
+            }
+            
+            .page-size-select {
+                padding: 4px 8px;
+                background-color: #444;
+                color: white;
+                border: 1px solid #555;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+        `; // Added pagination styles
         document.head.appendChild(style);
     }
 }
