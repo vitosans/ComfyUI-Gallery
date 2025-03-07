@@ -1,6 +1,9 @@
 import { app } from "../../scripts/app.js";
 import { Gallery } from './gallery.js';
 import { GallerySettings } from './gallery_settings.js'; // Import GallerySettings
+// Load keyboard navigation - this will ensure it's initialized
+import './gallery_keyboard.js';
+
 let gallery;
 let gallerySettingsInstance;
 
