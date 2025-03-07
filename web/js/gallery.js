@@ -520,9 +520,19 @@ export class Gallery {
         if (!navElement) return;
         navElement.innerHTML = '';
 
+        // Add "Create Folder" button at the top
+        const createFolderButton = document.createElement('button');
+        createFolderButton.textContent = '+ New Folder';
+        createFolderButton.classList.add('create-folder-button');
+        createFolderButton.addEventListener('click', () => this.showCreateFolderDialog());
+        navElement.appendChild(createFolderButton);
+
         let folderNames = Object.keys(this.folders);
         if (folderNames.length === 0) {
-            navElement.textContent = 'No folders available.';
+            const noFoldersMsg = document.createElement('div');
+            noFoldersMsg.textContent = 'No folders available.';
+            noFoldersMsg.classList.add('no-folders-message');
+            navElement.appendChild(noFoldersMsg);
             return;
         }
 
@@ -536,7 +546,14 @@ export class Gallery {
             return aParts.length - bParts.length;
         });
 
+        const folderList = document.createElement('div');
+        folderList.classList.add('folder-list');
+        navElement.appendChild(folderList);
+
         folderNames.forEach(folderName => {
+            const folderContainer = document.createElement('div');
+            folderContainer.classList.add('folder-container');
+
             const folderButton = document.createElement('button');
             folderButton.textContent = folderName;
             folderButton.classList.add('folder-button');
@@ -546,7 +563,19 @@ export class Gallery {
             } else {
                 folderButton.classList.remove('active-folder');
             }
-            navElement.appendChild(folderButton);
+            folderContainer.appendChild(folderButton);
+
+            // Add folder actions button
+            const folderActionsButton = document.createElement('button');
+            folderActionsButton.classList.add('folder-actions-button');
+            folderActionsButton.textContent = '⋮';
+            folderActionsButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.showFolderContextMenu(event, folderName);
+            });
+            folderContainer.appendChild(folderActionsButton);
+            
+            folderList.appendChild(folderContainer);
         });
 
         if (folderNames.length > 0) {
@@ -627,37 +656,94 @@ export class Gallery {
         const imageContainer = document.createElement('div');
         imageContainer.classList.add('image-container-inner');
 
-        if (
-            !imageInfo.name.endsWith(".mp4")
-        ) {
-            const imageElement = document.createElement('img');
-            imageElement.alt = imageInfo.name;
-            imageElement.dataset.src = imageInfo.url;
-            imageElement.classList.add('gallery-image');
-            imageElement.onerror = () => {
-                imageElement.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z' fill='%23c0392b'/%3E%3C/svg%3E";
-            };
-            imageElement.onclick = () => this.showFullscreenImage(imageInfo.url);
-            imageContainer.appendChild(imageElement);
-        } else {  
-            const imageElement = document.createElement('video');
-            imageElement.alt = imageInfo.name;
-            imageElement.controls = false;
-            if (this.currentSettings.autoPlayVideos) imageElement.autoplay = "autoplay";
-            imageElement.loop = true;
-            imageElement.muted = true;
-            imageElement.src = imageInfo.url;
-            imageElement.classList.add('gallery-media');
-            imageElement.onerror = () => {
-                imageElement.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z' fill='%23c0392b'/%3E%3C/svg%3E";
-            };
-            imageElement.onload = () => {
-                if (this.currentSettings.autoPlayVideos) imageElement.play();
+        // Determine file type and create appropriate media element
+        const isVideo = imageInfo.type === 'video' || imageInfo.name.endsWith(".mp4");
+        const isAnimation = imageInfo.type === 'animation' || imageInfo.name.endsWith(".gif");
+        let mediaElement;
+
+        // Create the proper element based on media type
+        if (isVideo) {
+            mediaElement = document.createElement('video');
+            mediaElement.alt = imageInfo.name;
+            mediaElement.controls = false;
+            if (this.currentSettings.autoPlayVideos) mediaElement.autoplay = "autoplay";
+            mediaElement.loop = true;
+            mediaElement.muted = true;
+            mediaElement.src = imageInfo.url;
+            mediaElement.classList.add('gallery-media', 'gallery-video');
+            
+            // Add hover behavior for videos
+            imageContainer.addEventListener('mouseenter', () => {
+                if (this.currentSettings.hoverPlayVideos !== false) {
+                    mediaElement.play().catch(err => console.error("Video play error:", err));
+                }
+            });
+            
+            imageContainer.addEventListener('mouseleave', () => {
+                if (this.currentSettings.hoverPlayVideos !== false && !this.currentSettings.autoPlayVideos) {
+                    mediaElement.pause();
+                }
+            });
+        } else {
+            mediaElement = document.createElement('img');
+            mediaElement.alt = imageInfo.name;
+            
+            // Use thumbnail if available
+            if (imageInfo.thumbnail_url) {
+                mediaElement.src = imageInfo.thumbnail_url;
+                mediaElement.dataset.fullsrc = imageInfo.url;
+            } else {
+                mediaElement.dataset.src = imageInfo.url;
             }
-            imageElement.onclick = () => this.showFullscreenImage(imageInfo.url);
-            imageContainer.appendChild(imageElement);
+            
+            mediaElement.classList.add('gallery-media', 'gallery-image');
+        }
+
+        // Common error handling for all media types
+        mediaElement.onerror = () => {
+            mediaElement.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z' fill='%23c0392b'/%3E%3C/svg%3E";
+        };
+
+        // Video specific event handlers
+        if (isVideo) {
+            mediaElement.onloadeddata = () => {
+                if (this.currentSettings.autoPlayVideos) {
+                    mediaElement.play().catch(err => console.error("Video autoplay error:", err));
+                }
+            }
+        }
+
+        mediaElement.onclick = () => this.showFullscreenImage(imageInfo.url);
+        imageContainer.appendChild(mediaElement);
+
+        // Create type and size badges
+        const badgesContainer = document.createElement('div');
+        badgesContainer.classList.add('media-badges');
+        
+        // Type badge
+        const typeBadge = document.createElement('span');
+        typeBadge.classList.add('media-badge', 'type-badge');
+        if (isVideo) {
+            typeBadge.textContent = 'VIDEO';
+            typeBadge.classList.add('video-badge');
+        } else if (isAnimation) {
+            typeBadge.textContent = 'GIF';
+            typeBadge.classList.add('gif-badge');
+        } else {
+            typeBadge.textContent = 'IMAGE';
+            typeBadge.classList.add('image-badge');
+        }
+        badgesContainer.appendChild(typeBadge);
+        
+        // Size badge if available
+        if (imageInfo.size) {
+            const sizeBadge = document.createElement('span');
+            sizeBadge.classList.add('media-badge', 'size-badge');
+            sizeBadge.textContent = imageInfo.size;
+            badgesContainer.appendChild(sizeBadge);
         }
         
+        imageContainer.appendChild(badgesContainer);
 
         const overlay = document.createElement('div');
         overlay.classList.add('card-overlay');
@@ -665,24 +751,38 @@ export class Gallery {
         const imageName = document.createElement('span');
         imageName.classList.add('image-name');
         imageName.textContent = imageInfo.name;
+        imageName.title = imageInfo.name; // Add tooltip for long filenames
         overlay.appendChild(imageName);
 
-        if (
-            !imageInfo.name.endsWith(".gif") &&
-            !imageInfo.name.endsWith(".mp4")
-        ) {
+        // Buttons container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.classList.add('card-buttons');
+
+        // Only show info button for images with potential metadata
+        if (!isAnimation && !isVideo) {
             const infoButton = document.createElement('button');
             infoButton.classList.add('info-button');
             infoButton.textContent = 'Info';
+            infoButton.title = 'View metadata';
             infoButton.onclick = (event) => {
                 event.stopPropagation();
                 this.showInfoWindow(imageInfo.metadata, imageInfo.url);
             };
-            overlay.appendChild(infoButton);
+            buttonContainer.appendChild(infoButton);
         }
 
-        
+        // Add actions button for all media types
+        const actionsButton = document.createElement('button');
+        actionsButton.classList.add('file-actions-button');
+        actionsButton.textContent = '⋮';
+        actionsButton.title = 'File actions';
+        actionsButton.onclick = (event) => {
+            event.stopPropagation();
+            this.showFileContextMenu(event, imageInfo);
+        };
+        buttonContainer.appendChild(actionsButton);
 
+        overlay.appendChild(buttonContainer);
         imageContainer.appendChild(overlay);
         card.appendChild(imageContainer);
         imageDisplay.appendChild(card);
@@ -703,6 +803,22 @@ export class Gallery {
         closeButton.onclick = () => this.closeFullscreenView();
         this.fullscreenContainer.appendChild(closeButton);
 
+        // Create a button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.classList.add('fullscreen-controls');
+        this.fullscreenContainer.appendChild(buttonContainer);
+
+        // Add download button
+        const downloadButton = document.createElement('button');
+        downloadButton.classList.add('fullscreen-download-button');
+        downloadButton.innerHTML = 'Download';
+        downloadButton.title = 'Download this file';
+        downloadButton.onclick = () => {
+            const fileName = imageUrl.split('filename=')[1]?.split('&')[0] || 'download';
+            this.downloadMedia(imageUrl, fileName);
+        };
+        buttonContainer.appendChild(downloadButton);
+
         if (!imageUrl.includes(".mp4&subfolder")) {
             this.fullscreenImage = document.createElement('img');
             this.fullscreenImage.classList.add('fullscreen-image');
@@ -721,6 +837,22 @@ export class Gallery {
         this.infoWindow.style.display = 'none';
         this.rawMetadataWindow.style.display = 'none';
         this.galleryPopup.style.zIndex = '1001';
+    }
+
+    /**
+     * Downloads a media file
+     * @param {string} url - The URL of the media to download
+     * @param {string} filename - The filename to save as
+     */
+    downloadMedia(url, filename) {
+        // Create a temporary anchor element to trigger download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename; // Set the download attribute to suggest filename
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 
     /**
@@ -882,17 +1014,55 @@ export class Gallery {
      * @param {HTMLElement} container - The HTML container holding the images.
      */
     setupLazyLoading(container) {
+        // Create IntersectionObserver for lazy loading
         const observer = new IntersectionObserver((entries, observer) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    const img = entry.target;
-                    img.src = img.dataset.src;
-                    observer.unobserve(img);
+                    const card = entry.target;
+                    
+                    // Handle image lazy loading
+                    const img = card.querySelector('img[data-src]');
+                    if (img) {
+                        img.src = img.dataset.src;
+                        img.classList.add('loaded');
+                        img.removeAttribute('data-src');
+                    }
+                    
+                    // Handle thumbnail to full image transition
+                    const imgWithFullSrc = card.querySelector('img[data-fullsrc]');
+                    if (imgWithFullSrc) {
+                        const fullSrc = imgWithFullSrc.dataset.fullsrc;
+                        // Preload full image
+                        const preloadImg = new Image();
+                        preloadImg.onload = () => {
+                            imgWithFullSrc.src = fullSrc;
+                            imgWithFullSrc.removeAttribute('data-fullsrc');
+                        };
+                        preloadImg.src = fullSrc;
+                    }
+                    
+                    // Handle video lazy loading
+                    const video = card.querySelector('video:not([src])');
+                    if (video && video.dataset.src) {
+                        video.src = video.dataset.src;
+                        if (this.currentSettings.autoPlayVideos) {
+                            video.play().catch(e => console.warn("Video autoplay prevented:", e));
+                        }
+                        video.removeAttribute('data-src');
+                    }
+                    
+                    observer.unobserve(card);
                 }
             });
-        }, { rootMargin: '100px' });
+        }, { 
+            rootMargin: '200px', // Load items 200px before they enter viewport
+            threshold: 0.01 // Trigger with just 1% visibility
+        });
 
-        container.querySelectorAll('img').forEach(img => observer.observe(img));
+        // Observe all image cards
+        container.querySelectorAll('.image-card').forEach(card => {
+            observer.observe(card);
+        });
     }
 
     /**
@@ -932,7 +1102,7 @@ export class Gallery {
         } else if (sortType === 'name_asc') {
             sortedImages.sort((a, b) => a.name.localeCompare(b.name));
         } else if (sortType === 'name_desc') {
-            sortedImages.sort((a, b) => b.name.localeCompare(b.name));
+            sortedImages.sort((a, b) => b.name.localeCompare(a.name));
         }
         return sortedImages;
     }
@@ -1093,64 +1263,592 @@ export class Gallery {
     }
 
     /**
-     * Loads and displays images for a given folder. (Modified to work with nested data structure)
-     * @param {string} folderName - The name of the folder to load images from.
+     * Shows context menu for file operations.
+     * @param {Event} event - The click event.
+     * @param {object} imageInfo - Information about the image.
      */
-    loadFolderImages(folderName) {
-        if (!folderName) return;
-        this.currentFolder = folderName;
-
-        // Update active folder button
-        const folderButtons = this.galleryPopup.querySelectorAll('.folder-button');
-        folderButtons.forEach(button => {
-            button.classList.toggle('active-folder', button.textContent === folderName);
-        });
-
-        const imageDisplay = this.galleryPopup?.querySelector('.image-display');
-        if (!imageDisplay) return;
-
-        imageDisplay.innerHTML = '';
-        let folderContent = this.folders[folderName]; // Get folder content from nested structure
-
-        if (!folderContent || Object.keys(folderContent).length === 0) { // Check if folderContent is empty
-            imageDisplay.textContent = 'No images in this folder.';
-            imageDisplay.classList.add('empty-gallery-message');
-            return;
-        }
-        imageDisplay.classList.remove('empty-gallery-message');
-
-        let images = Object.values(folderContent); // Get array of image info objects for sorting/filtering
-
-        let filteredImages = images;
-        if (this.searchText) {
-            const searchTerm = this.searchText.toLowerCase();
-            filteredImages = images.filter(imageInfo => imageInfo.name.toLowerCase().includes(searchTerm));
+    showFileContextMenu(event, imageInfo) {
+        // Remove any existing context menus
+        const existingMenu = document.querySelector('.file-context-menu');
+        if (existingMenu) {
+            document.body.removeChild(existingMenu);
         }
 
-
-        if (filteredImages.length === 0 && this.searchText) {
-            imageDisplay.textContent = 'No images found for your search.';
-            imageDisplay.classList.add('empty-gallery-message');
-            return;
-        }
-        imageDisplay.classList.remove('empty-gallery-message');
-
-        filteredImages = this.sortImagesArray(filteredImages, this.currentSort);
-
-        let lastDate = null;
-        filteredImages.forEach(imageInfo => {
-            const imageDate = (this.currentSort === "newest" || this.currentSort === "oldest") ? imageInfo.date.split(" ")[0] : null;
-            if (imageDate && imageDate !== lastDate) {
-                const dateSeparator = document.createElement('div');
-                dateSeparator.classList.add('date-separator');
-                dateSeparator.textContent = imageDate;
-                imageDisplay.appendChild(dateSeparator);
-                lastDate = imageDate;
+        const contextMenu = document.createElement('div');
+        contextMenu.classList.add('file-context-menu');
+        
+        // Position menu near the click
+        contextMenu.style.left = `${event.clientX}px`;
+        contextMenu.style.top = `${event.clientY}px`;
+        
+        // Create menu options
+        const menuOptions = [
+            {
+                label: 'Delete',
+                action: () => this.confirmAndDeleteFile(imageInfo)
+            },
+            {
+                label: 'Move to...',
+                action: () => this.showMoveFileDialog(imageInfo)
             }
-            this.createImageCard(imageDisplay, imageInfo);
+        ];
+        
+        menuOptions.forEach(option => {
+            const menuItem = document.createElement('div');
+            menuItem.classList.add('context-menu-item');
+            menuItem.textContent = option.label;
+            menuItem.onclick = () => {
+                option.action();
+                document.body.removeChild(contextMenu);
+            };
+            contextMenu.appendChild(menuItem);
         });
+        
+        document.body.appendChild(contextMenu);
+        
+        // Close menu when clicking elsewhere
+        const closeMenu = (e) => {
+            if (!contextMenu.contains(e.target)) {
+                document.body.removeChild(contextMenu);
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        // Add small delay to prevent immediate closing
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 100);
+    }
 
-        this.setupLazyLoading(imageDisplay);
+    /**
+     * Shows a confirmation dialog and deletes a file if confirmed.
+     * @param {object} imageInfo - Information about the image to delete.
+     */
+    confirmAndDeleteFile(imageInfo) {
+        const confirmDialog = document.createElement('div');
+        confirmDialog.classList.add('confirm-dialog');
+        
+        const confirmContent = document.createElement('div');
+        confirmContent.classList.add('confirm-content');
+        
+        const confirmMessage = document.createElement('div');
+        confirmMessage.classList.add('confirm-message');
+        confirmMessage.textContent = `Delete "${imageInfo.name}"?`;
+        confirmContent.appendChild(confirmMessage);
+        
+        const buttonContainer = document.createElement('div');
+        buttonContainer.classList.add('confirm-buttons');
+        
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.classList.add('confirm-cancel');
+        cancelButton.onclick = () => {
+            document.body.removeChild(confirmDialog);
+        };
+        buttonContainer.appendChild(cancelButton);
+        
+        const confirmButton = document.createElement('button');
+        confirmButton.textContent = 'Delete';
+        confirmButton.classList.add('confirm-delete');
+        confirmButton.onclick = () => {
+            this.deleteFile(imageInfo);
+            document.body.removeChild(confirmDialog);
+        };
+        buttonContainer.appendChild(confirmButton);
+        
+        confirmContent.appendChild(buttonContainer);
+        confirmDialog.appendChild(confirmContent);
+        document.body.appendChild(confirmDialog);
+        
+        // Close dialog when clicking outside
+        confirmDialog.addEventListener('click', (event) => {
+            if (event.target === confirmDialog) {
+                document.body.removeChild(confirmDialog);
+            }
+        });
+    }
+
+    /**
+     * Deletes a file via API call.
+     * @param {object} imageInfo - Information about the image to delete.
+     */
+    deleteFile(imageInfo) {
+        const filePath = `${this.currentFolder}/${imageInfo.name}`;
+        
+        fetch('/Gallery/files', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_path: filePath, is_folder: false })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to delete file');
+            return response.json();
+        })
+        .then(data => {
+            // Show success toast
+            this.showToast(`Deleted ${imageInfo.name}`);
+            
+            // Update local data
+            if (this.folders[this.currentFolder]) {
+                delete this.folders[this.currentFolder][imageInfo.name];
+                this.loadFolderImages(this.currentFolder);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting file:', error);
+            this.showToast(`Error: ${error.message}`, 'error');
+        });
+    }
+
+    /**
+     * Shows a dialog for moving a file to another folder.
+     * @param {object} imageInfo - Information about the image to move.
+     */
+    showMoveFileDialog(imageInfo) {
+        const moveDialog = document.createElement('div');
+        moveDialog.classList.add('move-dialog');
+        
+        const moveContent = document.createElement('div');
+        moveContent.classList.add('move-content');
+        
+        const moveTitle = document.createElement('div');
+        moveTitle.classList.add('move-title');
+        moveTitle.textContent = `Move "${imageInfo.name}" to:`;
+        moveContent.appendChild(moveTitle);
+        
+        const folderSelect = document.createElement('select');
+        folderSelect.classList.add('folder-select');
+        
+        // Add folder options
+        const folderNames = Object.keys(this.folders);
+        folderNames.sort();
+        
+        folderNames.forEach(folderName => {
+            if (folderName !== this.currentFolder) {
+                const option = document.createElement('option');
+                option.value = folderName;
+                option.textContent = folderName;
+                folderSelect.appendChild(option);
+            }
+        });
+        
+        // Add "New folder" option
+        const newFolderOption = document.createElement('option');
+        newFolderOption.value = "new_folder";
+        newFolderOption.textContent = "New folder...";
+        folderSelect.appendChild(newFolderOption);
+        
+        moveContent.appendChild(folderSelect);
+        
+        // New folder input (hidden initially)
+        const newFolderContainer = document.createElement('div');
+        newFolderContainer.classList.add('new-folder-container');
+        newFolderContainer.style.display = 'none';
+        
+        const newFolderInput = document.createElement('input');
+        newFolderInput.type = 'text';
+        newFolderInput.placeholder = 'Enter new folder name';
+        newFolderInput.classList.add('new-folder-input');
+        newFolderContainer.appendChild(newFolderInput);
+        
+        moveContent.appendChild(newFolderContainer);
+        
+        // Show/hide new folder input based on selection
+        folderSelect.addEventListener('change', () => {
+            if (folderSelect.value === 'new_folder') {
+                newFolderContainer.style.display = 'block';
+            } else {
+                newFolderContainer.style.display = 'none';
+            }
+        });
+        
+        const buttonContainer = document.createElement('div');
+        buttonContainer.classList.add('move-buttons');
+        
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.classList.add('move-cancel');
+        cancelButton.onclick = () => {
+            document.body.removeChild(moveDialog);
+        };
+        buttonContainer.appendChild(cancelButton);
+        
+        const moveButton = document.createElement('button');
+        moveButton.textContent = 'Move';
+        moveButton.classList.add('move-confirm');
+        moveButton.onclick = async () => {
+            let destinationFolder = folderSelect.value;
+            
+            // Handle new folder creation
+            if (destinationFolder === 'new_folder') {
+                const newFolderName = newFolderInput.value.trim();
+                if (!newFolderName) {
+                    this.showToast('Please enter a folder name', 'error');
+                    return;
+                }
+                
+                try {
+                    // Create new folder
+                    await fetch('/Gallery/folders', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ folder_path: newFolderName })
+                    }).then(response => {
+                        if (!response.ok) throw new Error('Failed to create folder');
+                        return response.json();
+                    });
+                    
+                    destinationFolder = newFolderName;
+                } catch (error) {
+                    console.error('Error creating folder:', error);
+                    this.showToast(`Error: ${error.message}`, 'error');
+                    return;
+                }
+            }
+            
+            // Move file
+            const sourcePath = `${this.currentFolder}/${imageInfo.name}`;
+            const destinationPath = `${destinationFolder}/${imageInfo.name}`;
+            
+            fetch('/Gallery/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source_path: sourcePath,
+                    destination_path: destinationPath,
+                    is_folder: false
+                })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to move file');
+                return response.json();
+            })
+            .then(data => {
+                // Show success toast
+                this.showToast(`Moved ${imageInfo.name} to ${destinationFolder}`);
+                
+                // Update local data
+                if (this.folders[this.currentFolder]) {
+                    // Remove from current folder
+                    const fileData = this.folders[this.currentFolder][imageInfo.name];
+                    delete this.folders[this.currentFolder][imageInfo.name];
+                    
+                    // Add to destination folder
+                    if (!this.folders[destinationFolder]) {
+                        this.folders[destinationFolder] = {};
+                    }
+                    this.folders[destinationFolder][imageInfo.name] = fileData;
+                    
+                    // Refresh UI
+                    this.loadFolderImages(this.currentFolder);
+                    this.populateFolderNavigation(this.galleryPopup.querySelector('.folder-navigation'));
+                }
+                
+                document.body.removeChild(moveDialog);
+            })
+            .catch(error => {
+                console.error('Error moving file:', error);
+                this.showToast(`Error: ${error.message}`, 'error');
+            });
+        };
+        buttonContainer.appendChild(moveButton);
+        
+        moveContent.appendChild(buttonContainer);
+        moveDialog.appendChild(moveContent);
+        document.body.appendChild(moveDialog);
+        
+        // Close dialog when clicking outside
+        moveDialog.addEventListener('click', (event) => {
+            if (event.target === moveDialog) {
+                document.body.removeChild(moveDialog);
+            }
+        });
+    }
+
+    /**
+     * Shows a context menu for folder operations.
+     * @param {Event} event - The click event.
+     * @param {string} folderName - Name of the folder.
+     */
+    showFolderContextMenu(event, folderName) {
+        // Remove any existing context menus
+        const existingMenu = document.querySelector('.file-context-menu');
+        if (existingMenu) {
+            document.body.removeChild(existingMenu);
+        }
+
+        const contextMenu = document.createElement('div');
+        contextMenu.classList.add('file-context-menu');
+        
+        // Position menu near the click
+        contextMenu.style.left = `${event.clientX}px`;
+        contextMenu.style.top = `${event.clientY}px`;
+        
+        // Create menu options
+        const menuOptions = [
+            {
+                label: 'Delete Folder',
+                action: () => this.confirmAndDeleteFolder(folderName)
+            }
+        ];
+        
+        menuOptions.forEach(option => {
+            const menuItem = document.createElement('div');
+            menuItem.classList.add('context-menu-item');
+            menuItem.textContent = option.label;
+            menuItem.onclick = () => {
+                option.action();
+                document.body.removeChild(contextMenu);
+            };
+            contextMenu.appendChild(menuItem);
+        });
+        
+        document.body.appendChild(contextMenu);
+        
+        // Close menu when clicking elsewhere
+        const closeMenu = (e) => {
+            if (!contextMenu.contains(e.target)) {
+                document.body.removeChild(contextMenu);
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        // Add small delay to prevent immediate closing
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 100);
+    }
+
+    /**
+     * Shows a confirmation dialog and deletes a folder if confirmed.
+     * @param {string} folderName - Name of the folder to delete.
+     */
+    confirmAndDeleteFolder(folderName) {
+        const confirmDialog = document.createElement('div');
+        confirmDialog.classList.add('confirm-dialog');
+        
+        const confirmContent = document.createElement('div');
+        confirmContent.classList.add('confirm-content');
+        
+        const confirmMessage = document.createElement('div');
+        confirmMessage.classList.add('confirm-message');
+        confirmMessage.textContent = `Delete folder "${folderName}" and all its contents?`;
+        confirmMessage.style.color = 'red';
+        confirmContent.appendChild(confirmMessage);
+        
+        const warningMessage = document.createElement('div');
+        warningMessage.classList.add('warning-message');
+        warningMessage.textContent = 'This action cannot be undone.';
+        confirmContent.appendChild(warningMessage);
+        
+        const buttonContainer = document.createElement('div');
+        buttonContainer.classList.add('confirm-buttons');
+        
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.classList.add('confirm-cancel');
+        cancelButton.onclick = () => {
+            document.body.removeChild(confirmDialog);
+        };
+        buttonContainer.appendChild(cancelButton);
+        
+        const confirmButton = document.createElement('button');
+        confirmButton.textContent = 'Delete';
+        confirmButton.classList.add('confirm-delete');
+        confirmButton.onclick = () => {
+            this.deleteFolder(folderName);
+            document.body.removeChild(confirmDialog);
+        };
+        buttonContainer.appendChild(confirmButton);
+        
+        confirmContent.appendChild(buttonContainer);
+        confirmDialog.appendChild(confirmContent);
+        document.body.appendChild(confirmDialog);
+        
+        // Close dialog when clicking outside
+        confirmDialog.addEventListener('click', (event) => {
+            if (event.target === confirmDialog) {
+                document.body.removeChild(confirmDialog);
+            }
+        });
+    }
+
+    /**
+     * Deletes a folder via API call.
+     * @param {string} folderName - Name of the folder to delete.
+     */
+    deleteFolder(folderName) {
+        fetch('/Gallery/files', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_path: folderName, is_folder: true })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to delete folder');
+            return response.json();
+        })
+        .then(data => {
+            // Show success toast
+            this.showToast(`Deleted folder ${folderName}`);
+            
+            // Update local data
+            delete this.folders[folderName];
+            
+            // If current folder was deleted, load first available folder
+            if (this.currentFolder === folderName) {
+                const availableFolders = Object.keys(this.folders);
+                if (availableFolders.length > 0) {
+                    this.loadFolderImages(availableFolders[0]);
+                } else {
+                    // No folders left
+                    const imageDisplay = this.galleryPopup?.querySelector('.image-display');
+                    if (imageDisplay) {
+                        imageDisplay.innerHTML = 'No folders available.';
+                    }
+                    this.currentFolder = null;
+                }
+            }
+            
+            // Update folder navigation
+            this.populateFolderNavigation(this.galleryPopup.querySelector('.folder-navigation'));
+        })
+        .catch(error => {
+            console.error('Error deleting folder:', error);
+            this.showToast(`Error: ${error.message}`, 'error');
+        });
+    }
+
+    /**
+     * Shows a dialog to create a new folder.
+     */
+    showCreateFolderDialog() {
+        const createDialog = document.createElement('div');
+        createDialog.classList.add('create-folder-dialog');
+        
+        const createContent = document.createElement('div');
+        createContent.classList.add('create-folder-content');
+        
+        const createTitle = document.createElement('div');
+        createTitle.classList.add('create-folder-title');
+        createTitle.textContent = 'Create New Folder';
+        createContent.appendChild(createTitle);
+        
+        const folderNameInput = document.createElement('input');
+        folderNameInput.type = 'text';
+        folderNameInput.placeholder = 'Enter folder name';
+        folderNameInput.classList.add('folder-name-input');
+        createContent.appendChild(folderNameInput);
+        
+        const buttonContainer = document.createElement('div');
+        buttonContainer.classList.add('create-folder-buttons');
+        
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.classList.add('create-folder-cancel');
+        cancelButton.onclick = () => {
+            document.body.removeChild(createDialog);
+        };
+        buttonContainer.appendChild(cancelButton);
+        
+        const createButton = document.createElement('button');
+        createButton.textContent = 'Create';
+        createButton.classList.add('create-folder-confirm');
+        createButton.onclick = () => {
+            const folderName = folderNameInput.value.trim();
+            if (!folderName) {
+                this.showToast('Please enter a folder name', 'error');
+                return;
+            }
+            
+            this.createFolder(folderName);
+            document.body.removeChild(createDialog);
+        };
+        buttonContainer.appendChild(createButton);
+        
+        createContent.appendChild(buttonContainer);
+        createDialog.appendChild(createContent);
+        document.body.appendChild(createDialog);
+        
+        // Auto-focus input
+        setTimeout(() => folderNameInput.focus(), 100);
+        
+        // Support Enter key
+        folderNameInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                createButton.click();
+            }
+        });
+        
+        // Close dialog when clicking outside
+        createDialog.addEventListener('click', (event) => {
+            if (event.target === createDialog) {
+                document.body.removeChild(createDialog);
+            }
+        });
+    }
+
+    /**
+     * Creates a new folder via API call.
+     * @param {string} folderName - Name of the folder to create.
+     */
+    createFolder(folderName) {
+        fetch('/Gallery/folders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder_path: folderName })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to create folder');
+            return response.json();
+        })
+        .then(data => {
+            // Show success toast
+            this.showToast(`Created folder ${folderName}`);
+            
+            // Update local data
+            if (!this.folders[folderName]) {
+                this.folders[folderName] = {};
+            }
+            
+            // Update folder navigation
+            this.populateFolderNavigation(this.galleryPopup.querySelector('.folder-navigation'));
+            
+            // Switch to new folder
+            this.loadFolderImages(folderName);
+        })
+        .catch(error => {
+            console.error('Error creating folder:', error);
+            this.showToast(`Error: ${error.message}`, 'error');
+        });
+    }
+
+    /**
+     * Displays a toast notification.
+     * @param {string} message - The message to display.
+     * @param {string} [type='success'] - The type of toast ('success', 'error').
+     */
+    showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.classList.add('gallery-toast');
+        toast.classList.add(`toast-${type}`);
+        toast.textContent = message;
+        
+        document.body.appendChild(toast);
+        
+        // Animate in
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 10);
+        
+        // Remove after delay
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    document.body.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
     }
 
     /**
