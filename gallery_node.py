@@ -78,9 +78,7 @@ class GalleryNode:
                             print(f"Gallery Node: Error processing image {full_path}: {e}")
 
                 folder_key = os.path.join(base_path, relative_path) if relative_path else base_path
-                # Only add folders that contain images
-                if images_in_folder:
-                    folders_data[folder_key] = images_in_folder
+                folders_data[folder_key] = images_in_folder
 
             except Exception as e:
                 print(f"Gallery Node: Error scanning directory {dir_path}: {e}")
@@ -94,64 +92,8 @@ class GalleryNode:
 
     @classmethod
     def JAVASCRIPT_IMPORTS(cls):
-        """This method defines JS files to import when the node is added to the graph"""
-        print("Gallery Node: Loading JAVASCRIPT_IMPORTS")
-        return [
-            {"path": "./web/js/gallery-button.js"},  # The standalone button script
-            {"path": "./web/js/gallery_ui.js"}       # The main gallery UI 
-        ]
-        
-    @classmethod
-    def HEAD_IMPORTS(cls):
-        """This method defines HTML to add to the document HEAD when the node is added to the graph"""
-        print("Gallery Node: Loading HEAD_IMPORTS")
-        return [
-            {"script": {"content": """
-                console.log('Gallery Node: Adding inline button');
-                // Wait for page to load
-                document.addEventListener('DOMContentLoaded', function() {
-                    setTimeout(function() {
-                        if (!document.getElementById('gallery-node-button')) {
-                            const button = document.createElement('button');
-                            button.id = 'gallery-node-button';
-                            button.textContent = 'Gallery';
-                            button.style.backgroundColor = '#f39c12';
-                            button.style.color = 'white';
-                            button.style.border = 'none';
-                            button.style.padding = '8px 15px';
-                            button.style.borderRadius = '4px';
-                            button.style.cursor = 'pointer';
-                            button.style.position = 'fixed';
-                            button.style.left = '20px';
-                            button.style.bottom = '20px';
-                            button.style.zIndex = '10000';
-                            button.onclick = function() {
-                                alert('Gallery button clicked from node!');
-                            };
-                            document.body.appendChild(button);
-                            console.log('Gallery Node: Button added to page');
-                        }
-                    }, 1000);
-                });
-            """}}
-        ]
-        
-    @classmethod
-    def DOCUMENTATION(cls):
-        """Add documentation for the gallery node"""
-        return {
-            "title": "Gallery Node",
-            "description": "A node that provides a gallery for viewing generated images with metadata",
-            "buttons": [
-                {
-                    "name": "Open Gallery Button",
-                    "icon": "Gallery",
-                    "description": "Opens the gallery to view generated images with metadata"
-                }
-            ],
-            "return": "Nothing"
-        }
+        return [{"path": "./web/js/gallery_ui.js"}]
 
-# Export the node class
+
 NODE_CLASS_MAPPINGS = {"GalleryNode": GalleryNode}
 NODE_DISPLAY_NAME_MAPPINGS = {"GalleryNode": "Gallery Button"}
